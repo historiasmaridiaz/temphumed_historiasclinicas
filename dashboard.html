@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema de Control</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                <h1>Control Temp/Humedad Historias Clinicas</h1>
+            </div>
+            <nav>
+                <a href="index.html">Tabla de Datos</a>
+                <a href="graphics.html">Gráficos</a>
+                <a href="migration.html">Migración</a>
+                <a class="active" href="dashboard.html">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2>Dashboard - Informe Mensual</h2>
+                <p style="color: #718096; margin-top: 5px;">Análisis estadístico y métricas del sistema de control</p>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-success" onclick="generateDashboard()">
+                    🔄 Generar Informe
+                </button>
+                <button class="btn btn-primary" onclick="exportDashboard()">
+                    📥 Exportar Datos
+                </button>
+                <a href="index.html" class="btn btn-outline">
+                    ← Volver a Tabla
+                </a>
+            </div>
+        </div>
+
+        <!-- Alert Info -->
+        <div class="alert alert-info">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p style="font-weight: 600;">Panel de Estadísticas</p>
+                <p style="margin-top: 5px;">Este dashboard muestra las estadísticas calculadas automáticamente de los datos actuales y anuales.</p>
+            </div>
+        </div>
+
+        <!-- Dashboard Cards -->
+        <div class="dashboard-grid">
+            <!-- Temperatura Card -->
+            <div class="dashboard-card">
+                <h3>🌡️ Temperatura</h3>
+                <div style="margin: 20px 0;">
+                    <div class="stat-label">Promedio Mensual</div>
+                    <div class="stat-value" id="tempAvg" style="color: white;">--°C</div>
+                </div>
+                <div style="margin: 15px 0; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span class="stat-label">Suma Total del Mes:</span>
+                        <strong><span id="tempSum">--</span>°C</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span class="stat-label">Análisis:</span>
+                        <strong id="tempAnalysis">--</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Humedad Card -->
+            <div class="dashboard-card">
+                <h3>💧 Humedad</h3>
+                <div style="margin: 20px 0;">
+                    <div class="stat-label">Promedio Mensual</div>
+                    <div class="stat-value" id="humidityAvg" style="color: white;">--%</div>
+                </div>
+                <div style="margin: 15px 0; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span class="stat-label">Suma Total del Mes:</span>
+                        <strong><span id="humiditySum">--</span>%</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span class="stat-label">Análisis:</span>
+                        <strong id="humidityAnalysis">--</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Promedios Anuales Card -->
+            <div class="dashboard-card">
+                <h3>📅 Promedio Anual</h3>
+                <div style="margin: 20px 0;">
+                    <div class="stat-label">Temperatura del Año</div>
+                    <div class="stat-value" id="yearTempAvg" style="color: white; font-size: 1.8em;">--°C</div>
+                </div>
+                <div style="margin: 20px 0; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                    <div class="stat-label">Humedad del Año</div>
+                    <div class="stat-value" id="yearHumidityAvg" style="color: white; font-size: 1.8em;">--%</div>
+                </div>
+            </div>
+            
+            <!-- Estadísticas Generales Card -->
+            <div class="dashboard-card">
+                <h3>📊 Estadísticas Generales</h3>
+                <div style="margin: 20px 0;">
+                    <div class="stat-label">Total de Registros</div>
+                    <div class="stat-value" id="totalRecords" style="color: white;">--</div>
+                </div>
+                <div style="margin: 15px 0; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                    <div class="stat-label">Último Registro:</div>
+                    <strong id="lastRecord" style="font-size: 1.1em;">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Info -->
+        <div class="card">
+            <h3 class="card-title">ℹ️ Información del Dashboard</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px;">
+                <div>
+                    <h4 style="color: #667eea; margin-bottom: 10px;">📈 Métricas Calculadas</h4>
+                    <ul style="line-height: 2; color: #718096;">
+                        <li>Promedio mensual de temperatura</li>
+                        <li>Promedio mensual de humedad</li>
+                        <li>Suma total de valores del mes</li>
+                        <li>Análisis automático de rangos</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 style="color: #667eea; margin-bottom: 10px;">🎯 Análisis Automático</h4>
+                    <ul style="line-height: 2; color: #718096;">
+                        <li><strong>Normal:</strong> Valores dentro del rango esperado</li>
+                        <li><strong>Alta/Bajo:</strong> Valores fuera del rango óptimo</li>
+                        <li>Basado en promedios históricos</li>
+                        <li>Actualización en tiempo real</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 style="color: #667eea; margin-bottom: 10px;">📊 Datos Anuales</h4>
+                    <ul style="line-height: 2; color: #718096;">
+                        <li>Promedio anual de temperatura</li>
+                        <li>Promedio anual de humedad</li>
+                        <li>Incluye datos migrados</li>
+                        <li>Actualizado automáticamente</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <h3 class="card-title">⚡ Acciones Rápidas</h3>
+            <div class="button-group" style="margin-top: 20px;">
+                <a href="index.html" class="btn btn-primary">
+                    📋 Ver Tabla de Datos
+                </a>
+                <a href="graphics.html" class="btn btn-success">
+                    📈 Ver Gráficos
+                </a>
+                <a href="migration.html" class="btn btn-info">
+                    🔄 Gestión de Migración
+                </a>
+                <button class="btn btn-outline" onclick="window.print()">
+                    🖨️ Imprimir Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>

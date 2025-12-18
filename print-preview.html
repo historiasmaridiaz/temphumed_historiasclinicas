@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vista Previa de Impresión - Sistema de Temperatura</title>
+    <link rel="stylesheet" href="css/print-preview.css">
+</head>
+<body>
+    <div class="print-container">
+        <!-- PANEL LATERAL DE CONFIGURACIÓN -->
+        <aside class="config-panel">
+            <h2>⚙️ Configuración de Impresión</h2>
+            
+            <!-- TAMAÑO DE PAPEL -->
+            <div class="form-group">
+                <label for="paperSize">📄 Tamaño de Papel:</label>
+                <select id="paperSize" class="config-input">
+                    <option value="letter" selected>Carta (21.6 x 27.9 cm)</option>
+                    <option value="legal">Legal (21.6 x 35.6 cm)</option>
+                    <option value="a4">A4 (21 x 29.7 cm)</option>
+                    <option value="a3">A3 (29.7 x 42 cm)</option>
+                </select>
+            </div>
+
+            <!-- ORIENTACIÓN -->
+            <div class="form-group">
+                <label>📐 Orientación:</label>
+                <div class="orientation-buttons">
+                    <button class="orientation-btn active" data-orientation="landscape">
+                        ⬌ Horizontal
+                    </button>
+                    <button class="orientation-btn" data-orientation="portrait">
+                        ⬍ Vertical
+                    </button>
+                </div>
+            </div>
+
+            <!-- ESCALA -->
+            <div class="form-group">
+                <label for="scale">🔍 Escala:</label>
+                <div class="scale-control">
+                    <button id="decreaseScale" class="scale-btn">−</button>
+                    <input type="range" id="scale" min="50" max="150" value="57" class="config-input">
+                    <button id="increaseScale" class="scale-btn">+</button>
+                </div>
+                <div class="scale-display"><span id="scaleValue">57</span>%</div>
+            </div>
+
+            <!-- MÁRGENES -->
+            <div class="form-group">
+                <label>📏 Márgenes (cm):</label>
+                <div class="margins-grid">
+                    <div>
+                        <label for="marginTop">Superior:</label>
+                        <input type="number" id="marginTop" value="0.1" step="0.1" min="0" max="5" class="margin-input">
+                    </div>
+                    <div>
+                        <label for="marginBottom">Inferior:</label>
+                        <input type="number" id="marginBottom" value="0.1" step="0.1" min="0" max="5" class="margin-input">
+                    </div>
+                    <div>
+                        <label for="marginLeft">Izquierda:</label>
+                        <input type="number" id="marginLeft" value="0.1" step="0.1" min="0" max="5" class="margin-input">
+                    </div>
+                    <div>
+                        <label for="marginRight">Derecha:</label>
+                        <input type="number" id="marginRight" value="0.1" step="0.1" min="0" max="5" class="margin-input">
+                    </div>
+                </div>
+            </div>
+
+            <!-- OPCIONES ADICIONALES -->
+            <div class="form-group">
+                <label>🎨 Opciones de Visualización:</label>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="showGridlines" checked>
+                        Mostrar líneas de cuadrícula
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showHeaders">
+                        Mostrar encabezados
+                    </label>
+                </div>
+            </div>
+
+            <!-- VISTA PREVIA DE CONFIGURACIÓN -->
+            <div class="preview-config">
+                <div id="configSummary" class="config-summary">
+                    <strong>📋 Configuración Actual:</strong>
+                    <p id="summaryText">Carta | Horizontal | 57% | Márgenes: 0.1cm</p>
+                </div>
+            </div>
+
+            <!-- BOTONES DE ACCIÓN -->
+            <div class="action-buttons">
+                <button id="downloadPDF" class="btn btn-primary">
+                    💾 Descargar PDF
+                </button>
+                <button id="resetConfig" class="btn btn-outline">
+                    🔄 Restablecer
+                </button>
+                <button id="closePreview" class="btn btn-close">
+                    ✕ Cerrar
+                </button>
+            </div>
+        </aside>
+
+        <!-- ÁREA DE VISTA PREVIA -->
+        <main class="preview-area">
+            <div class="preview-header">
+                <h1>📄 Vista Previa de Impresión</h1>
+                <div class="preview-info">
+                    <span id="sheetInfo">GRAFICO_FORMATO</span>
+                    <span id="resolutionInfo">Escala: 57%</span>
+                </div>
+            </div>
+
+            <div class="preview-content" id="previewContent">
+                <div class="loading-message" id="loadingMessage">
+                    <div class="spinner"></div>
+                    <p>Cargando vista previa...</p>
+                </div>
+                <div class="page-container" id="pageContainer" style="display: none;">
+                    <iframe id="contentFrame" title="Vista previa del documento"></iframe>
+                </div>
+            </div>
+
+            <div class="preview-footer">
+                <p class="footer-text">📌 Ajusta la configuración y presiona "Descargar PDF" cuando esté listo</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/print-preview.js"></script>
+</body>
+</html>

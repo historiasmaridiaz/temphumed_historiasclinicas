@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Control de Temperatura y Humedad</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                <h1>Control Temp/Humedad Historias Clinicas</h1>
+            </div>
+            <nav>
+                <a class="active" href="index.html">Tabla de Datos</a>
+                <a href="graphics.html">Gráficos</a>
+                <a href="migration.html">Migración</a>
+                <a href="dashboard.html">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Configuration Section -->
+        <div id="config-section" class="card" style="display:none;">
+            <h2>⚙️ Configuración Inicial</h2>
+            <div class="config-box">
+                <label><strong>URL de Apps Script:</strong></label>
+                <p style="color: #856404; margin: 10px 0; font-size: 0.9em;">
+                    Ingrese la URL de implementación de Google Apps Script (debe terminar en /exec)
+                </p>
+                <input type="text" 
+                       id="script-url-input" 
+                       class="form-control"
+                       placeholder="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"
+                       style="margin-top:10px;">
+                <button class="btn btn-success" onclick="saveConfiguration()" style="margin-top:15px;">
+                    💾 Guardar y Continuar
+                </button>
+            </div>
+        </div>
+
+        <!-- Page Header -->
+        <div class="page-header" id="main-content" style="display:none;">
+            <div>
+                <h2>Tabla de Datos de Temperatura y Humedad</h2>
+                <p style="color: #718096; margin-top: 5px;">Gestione todos los registros de temperatura y humedad</p>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-success" onclick="openAddModal()">
+                    ➕ Agregar Datos
+                </button>
+                <button class="btn btn-primary" onclick="loadData()">
+                    🔄 Actualizar
+                </button>
+                <button class="btn btn-info" onclick="window.location.href='graphics.html'">
+                    📈 Ver Gráficos
+                </button>
+                <button class="btn btn-warning" onclick="showHistory()">
+                    🕐 Histórico
+                </button>
+            </div>
+        </div>
+
+        <!-- Alert Container -->
+        <div id="alert-container"></div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading" style="display:none;">
+            <div class="spinner"></div>
+            <p>Cargando datos...</p>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card" id="table-container" style="display:none;">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Jornada</th>
+                            <th>Día</th>
+                            <th>Temperatura (°C)</th>
+                            <th>Humedad (%)</th>
+                            <th>Persona</th>
+                            <th>Observaciones</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-tbody">
+                        <tr>
+                            <td colspan="10" style="text-align:center; padding: 40px; color: #718096;">
+                                No hay datos disponibles
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Data -->
+    <div id="data-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Agregar Nuevo Registro</h3>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="data-form" onsubmit="saveData(event)">
+                    <input type="hidden" id="record-id">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Fecha *</label>
+                        <input type="date" id="fecha" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Hora *</label>
+                        <input type="time" id="hora" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Jornada *</label>
+                        <select id="jornada" class="form-control" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="MAÑANA">MAÑANA</option>
+                            <option value="TARDE">TARDE</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Día *</label>
+                        <input type="number" id="dia" class="form-control" min="1" max="31" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Temperatura (°C) *</label>
+                        <input type="number" id="temperatura" class="form-control" step="0.1" min="-50" max="100" required>
+                        <p class="form-helper">Ingrese la temperatura en grados Celsius</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Humedad (%) *</label>
+                        <input type="number" id="humedad" class="form-control" min="0" max="100" required>
+                        <p class="form-helper">Ingrese el porcentaje de humedad (0-100)</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Persona que Registra *</label>
+                        <input type="text" id="persona" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Observaciones</label>
+                        <textarea id="observaciones" class="form-control" rows="3" placeholder="Opcional: Ingrese observaciones adicionales"></textarea>
+                    </div>
+                    
+                    <div class="button-group" style="margin-top: 20px;">
+                        <button type="submit" class="btn btn-success">💾 Guardar</button>
+                        <button type="button" class="btn btn-outline" onclick="closeModal()">✖ Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: History -->
+    <div id="history-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Histórico de Cambios</h3>
+                <button class="close-modal" onclick="closeHistoryModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="history-list" style="max-height: 400px; overflow-y: auto;"></div>
+                <div class="button-group" style="margin-top: 20px;">
+                    <button class="btn btn-warning" onclick="undoLastChange()">
+                        ↶ Deshacer Último Cambio
+                    </button>
+                    <button class="btn btn-info" onclick="redoLastChange()">
+                        ↷ Rehacer Último Cambio
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

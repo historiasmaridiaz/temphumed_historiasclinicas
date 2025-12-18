@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migración - Sistema de Control</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                <h1>Control Temp/Humedad Historias Clinicas</h1>
+            </div>
+            <nav>
+                <a href="index.html">Tabla de Datos</a>
+                <a href="graphics.html">Gráficos</a>
+                <a class="active" href="migration.html">Migración</a>
+                <a href="dashboard.html">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2>Gestión de Migración de Datos</h2>
+                <p style="color: #718096; margin-top: 5px;">Transfiera datos mensuales completos a hojas anuales de archivo</p>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-success" onclick="openCreateYearModal()">
+                    ➕ Crear Hoja Anual
+                </button>
+                <button class="btn btn-warning" onclick="showRestoreModal()">
+                    ↩️ Restaurar Migración
+                </button>
+                <button class="btn btn-info" onclick="loadHistoricalData()">
+                    🔄 Actualizar Vista
+                </button>
+            </div>
+        </div>
+
+        <!-- Current Month Status -->
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">📅 Estado del Mes Actual</h3>
+                    <p style="color: #718096; margin-top: 5px;" id="currentMonthName">Diciembre 2025</p>
+                </div>
+                <span class="status-badge status-warning">
+                    <span class="status-indicator"></span>
+                    En Progreso
+                </span>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Registros Actuales</div>
+                    <div class="stat-value" id="currentRecords">0</div>
+                    <div class="stat-subtitle">de 62 requeridos (31 días × 2 turnos)</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="recordsProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Progreso del Mes</div>
+                    <div class="stat-value" id="monthProgress">0%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Días Restantes</div>
+                    <div class="stat-value" id="daysRemaining">--</div>
+                    <div class="stat-subtitle">hasta fin de mes</div>
+                </div>
+            </div>
+
+            <div class="alert alert-warning" id="migrationAlert">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                    <p style="font-weight: 600;">Mes no completado</p>
+                    <p style="margin-top: 5px;">Se requieren 62 registros completos para habilitar la función de migración automática.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Migration Control Panel -->
+        <div class="card">
+            <h3 class="card-title" style="margin-bottom: 20px;">🚀 Panel de Control de Migración</h3>
+            
+            <div class="migration-form">
+                <div>
+                    <div class="form-group">
+                        <label class="form-label">Mes a Migrar</label>
+                        <select id="migrationMonth" class="form-control">
+                            <option value="">Seleccionar mes...</option>
+                            <option value="ENERO">ENERO</option>
+                            <option value="FEBRERO">FEBRERO</option>
+                            <option value="MARZO">MARZO</option>
+                            <option value="ABRIL">ABRIL</option>
+                            <option value="MAYO">MAYO</option>
+                            <option value="JUNIO">JUNIO</option>
+                            <option value="JULIO">JULIO</option>
+                            <option value="AGOSTO">AGOSTO</option>
+                            <option value="SEPTIEMBRE">SEPTIEMBRE</option>
+                            <option value="OCTUBRE">OCTUBRE</option>
+                            <option value="NOVIEMBRE">NOVIEMBRE</option>
+                            <option value="DICIEMBRE">DICIEMBRE</option>
+                        </select>
+                        <p class="form-helper">Seleccione el mes que desea migrar a la hoja anual</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Hoja de Destino (Año)</label>
+                        <select id="targetYear" class="form-control">
+                            <option value="">Seleccionar año...</option>
+                            <option value="2025">Año 2025</option>
+                            <option value="2024">Año 2024</option>
+                            <option value="2026">Año 2026</option>
+                        </select>
+                        <p class="form-helper">Seleccione el año donde se migrarán los datos</p>
+                    </div>
+
+                    <button id="startMigrationBtn" class="btn btn-primary" style="width: 100%;" onclick="executeMigrationFromPanel()">
+                        🚀 Iniciar Migración
+                    </button>
+                </div>
+
+                <div style="background: #f7fafc; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin-bottom: 20px; color: #2d3748;">📋 Vista Previa de Migración</h4>
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div style="display: flex; justify-content: space-between; padding: 10px; background: white; border-radius: 8px;">
+                            <span style="color: #718096;">Registros a migrar:</span>
+                            <span style="font-weight: 600; color: #2d3748;" id="recordsToMigrate">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 10px; background: white; border-radius: 8px;">
+                            <span style="color: #718096;">Hoja origen:</span>
+                            <span style="font-weight: 600; color: #2d3748;">BASE (gid=0)</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 10px; background: white; border-radius: 8px;">
+                            <span style="color: #718096;">Hoja destino:</span>
+                            <span style="font-weight: 600; color: #2d3748;" id="destSheet">No seleccionado</span>
+                        </div>
+                        <div class="alert alert-info" style="margin: 10px 0 0 0;">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p style="font-size: 0.85em; margin: 0;">La hoja BASE se vaciará después de la migración</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Year Sheets -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">📚 Hojas Anuales Disponibles</h3>
+                <button id="refreshSheetsBtn" class="btn btn-outline" onclick="loadYearSheets()">
+                    🔄 Actualizar Lista
+                </button>
+            </div>
+            <div class="year-sheets-grid" id="yearSheetsContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Cargando hojas anuales...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historical Data Explorer -->
+        <div class="card">
+            <h3 class="card-title" style="margin-bottom: 20px;">🔍 Explorador de Datos Históricos</h3>
+            <p style="color: #718096; margin-bottom: 20px;">
+                Navegue por los datos históricos organizados por año y mes
+            </p>
+            <div id="historicalDataContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Cargando datos históricos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Migration Progress Modal -->
+    <div id="migrationModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>⏳ Migración en Progreso</h3>
+            </div>
+            <div class="modal-body">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 20px;"><strong>Transfiriendo datos a la hoja anual...</strong></p>
+                    <p style="color: #718096; font-size: 0.9em; margin-top: 10px;">Por favor no cierre esta ventana</p>
+                </div>
+                <div style="margin-top: 30px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span>Progreso</span>
+                        <span id="migrationProgressText" style="font-weight: 600;">0%</span>
+                    </div>
+                    <div class="progress-bar" style="height: 12px;">
+                        <div class="progress-fill" id="migrationProgressBar" style="width: 0%; background: #667eea;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore Migration Modal -->
+    <div id="restoreModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>↩️ Restaurar Migración</h3>
+                <button class="modal-close" onclick="closeRestoreModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <div>
+                        <p style="font-weight: 600;">⚠️ Advertencia</p>
+                        <p style="margin-top: 5px;">Esta acción restaurará los datos de un mes específico desde la hoja del año de vuelta a la hoja BASE. Los registros serán eliminados del historial del año.</p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Año de Origen:</label>
+                    <select id="restoreYear" class="form-control" required>
+                        <option value="">Seleccionar año...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Mes a Restaurar:</label>
+                    <select id="restoreMonth" class="form-control" required>
+                        <option value="">Seleccionar mes...</option>
+                        <option value="ENERO">ENERO</option>
+                        <option value="FEBRERO">FEBRERO</option>
+                        <option value="MARZO">MARZO</option>
+                        <option value="ABRIL">ABRIL</option>
+                        <option value="MAYO">MAYO</option>
+                        <option value="JUNIO">JUNIO</option>
+                        <option value="JULIO">JULIO</option>
+                        <option value="AGOSTO">AGOSTO</option>
+                        <option value="SEPTIEMBRE">SEPTIEMBRE</option>
+                        <option value="OCTUBRE">OCTUBRE</option>
+                        <option value="NOVIEMBRE">NOVIEMBRE</option>
+                        <option value="DICIEMBRE">DICIEMBRE</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeRestoreModal()">Cancelar</button>
+                <button class="btn btn-warning" onclick="executeRestore()">↩️ Restaurar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Year Modal -->
+    <div id="createYearModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>➕ Crear Nueva Hoja Anual</h3>
+                <button class="modal-close" onclick="closeCreateYearModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Año (YYYY):</label>
+                    <input type="number" id="newYearValue" class="form-control" placeholder="2026" min="2020" max="2100" required>
+                    <p class="form-helper">Ingrese el año para crear una nueva hoja de archivo</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeCreateYearModal()">Cancelar</button>
+                <button class="btn btn-success" onclick="executeCreateYear()">➕ Crear Hoja</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/migration.js"></script>
+</body>
+</html>

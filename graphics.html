@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gráficos - Sistema de Control</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                <h1>Control Temp/Humedad Historias Clinicas</h1>
+            </div>
+            <nav>
+                <a href="index.html">Tabla de Datos</a>
+                <a class="active" href="graphics.html">Gráficos</a>
+                <a href="migration.html">Migración</a>
+                <a href="dashboard.html">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Page Header -->
+        <div class="page-header">
+    <div>
+        <h2>Gráficos en Tiempo Real</h2>
+        <p style="color: #718096; margin-top: 5px;">Visualización y análisis de datos de temperatura y humedad</p>
+    </div>
+    <div class="button-group">
+        <button class="btn btn-success" onclick="refreshCharts()">
+            🔄 Actualizar Gráficos
+        </button>
+
+         <!-- BOTÓN 2: ABRIR GOOGLE SHEETS MANUAL -->
+    <button class="btn btn-outline" onclick="openGoogleSheetsForPDF()">
+        📄 Exportar en Google Sheets
+    </button>
+        
+        <!-- MENÚ DESPLEGABLE DE EXPORTACIÓN -->
+        <div style="position: relative; display: inline-block;">
+            <button class="btn btn-primary" onclick="toggleExportMenu(event)">
+                📥 Exportar ▼
+            </button>
+            <div id="exportMenu" style="display: none; position: absolute; right: 0; background: white; min-width: 250px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); border-radius: 8px; z-index: 1000; overflow: hidden; margin-top: 5px;">
+                
+                <!-- PDF Horizontal (2 páginas) -->
+                <a href="https://docs.google.com/spreadsheets/d/1YRAztDSETnV5GcsPhtfrvKM-8k922XxzUcLHiLHwBcI/export?format=pdf&gid=9685068&portrait=false&size=letter&scale=2&top_margin=0.3&bottom_margin=0.3&left_margin=0.3&right_margin=0.3&gridlines=false&printtitle=false&sheetnames=false&attachment=true" 
+                   target="_blank"
+                   download="Reporte-Horizontal.pdf"
+                   style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: #2d3748; text-decoration: none; border-bottom: 1px solid #e2e8f0; transition: background 0.2s;"
+                   onmouseover="this.style.background='#f7fafc'"
+                   onmouseout="this.style.background='white'">
+                    <span style="font-size: 1.2em;">📄</span>
+                    <div>
+                        <strong>PDF Horizontal (2 páginas)</strong>
+                        <div style="font-size: 0.85em; color: #718096;">Formato carta • 57% escala</div>
+                    </div>
+                </a>
+                
+                <!-- Gráficos PNG -->
+                <a href="#" 
+                   onclick="event.preventDefault(); downloadCharts(); toggleExportMenu(event);"
+                   style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: #2d3748; text-decoration: none; border-bottom: 1px solid #e2e8f0; transition: background 0.2s;"
+                   onmouseover="this.style.background='#f7fafc'"
+                   onmouseout="this.style.background='white'">
+                    <span style="font-size: 1.2em;">🖼️</span>
+                    <div>
+                        <strong>Gráficos PNG</strong>
+                        <div style="font-size: 0.85em; color: #718096;">Imágenes individuales</div>
+                    </div>
+                </a>
+                
+                <!-- Excel -->
+                <a href="https://docs.google.com/spreadsheets/d/1YRAztDSETnV5GcsPhtfrvKM-8k922XxzUcLHiLHwBcI/export?format=xlsx&gid=9685068" 
+                   target="_blank"
+                   download="Datos-Temperatura.xlsx"
+                   style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: #2d3748; text-decoration: none; transition: background 0.2s;"
+                   onmouseover="this.style.background='#f7fafc'"
+                   onmouseout="this.style.background='white'">
+                    <span style="font-size: 1.2em;">📊</span>
+                    <div>
+                        <strong>Excel (.xlsx)</strong>
+                        <div style="font-size: 0.85em; color: #718096;">Para análisis de datos</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para el menú -->
+<script>
+function toggleExportMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('exportMenu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// Cerrar menú al hacer clic fuera
+document.addEventListener('click', function(event) {
+    const menu = document.getElementById('exportMenu');
+    if (menu && menu.style.display === 'block') {
+        menu.style.display = 'none';
+    }
+});
+</script>
+
+
+            </div>
+        </div>
+
+        <!-- Alert Info -->
+        <div class="alert alert-info">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p style="font-weight: 600;">Actualización automática activa</p>
+                <p style="margin-top: 5px;">Los gráficos se actualizan automáticamente cada 60 segundos con los últimos datos registrados.</p>
+            </div>
+        </div>
+
+        <!-- Temperature Chart -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    🌡️ Temperatura (°C)
+                </h3>
+                <span style="color: #718096; font-size: 0.9em;">Últimas 24 lecturas</span>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="temperatureChart"></canvas>
+            </div>
+
+            <div class="legend-custom">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                    <span>Temperatura Real</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e53e3e;"></div>
+                    <span>Temperatura Máxima</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3182ce;"></div>
+                    <span>Temperatura Mínima</span>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Temperatura Actual</div>
+                    <div class="stat-value" id="tempCurrent">--<span class="stat-unit">°C</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Temperatura Máxima</div>
+                    <div class="stat-value" id="tempMax">--<span class="stat-unit">°C</span></div>
+                    <div class="stat-trend" id="tempMaxTime">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Temperatura Mínima</div>
+                    <div class="stat-value" id="tempMin">--<span class="stat-unit">°C</span></div>
+                    <div class="stat-trend" id="tempMinTime">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Promedio del Período</div>
+                    <div class="stat-value" id="tempAvg">--<span class="stat-unit">°C</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Humidity Chart -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    💧 Humedad (%)
+                </h3>
+                <span style="color: #718096; font-size: 0.9em;">Últimas 24 lecturas</span>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="humidityChart"></canvas>
+            </div>
+
+            <div class="legend-custom">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #38b2ac 0%, #319795 100%);"></div>
+                    <span>Humedad Real</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e53e3e;"></div>
+                    <span>Humedad Máxima</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3182ce;"></div>
+                    <span>Humedad Mínima</span>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Humedad Actual</div>
+                    <div class="stat-value" id="humCurrent">--<span class="stat-unit">%</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Humedad Máxima</div>
+                    <div class="stat-value" id="humMax">--<span class="stat-unit">%</span></div>
+                    <div class="stat-trend" id="humMaxTime">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Humedad Mínima</div>
+                    <div class="stat-value" id="humMin">--<span class="stat-unit">%</span></div>
+                    <div class="stat-trend" id="humMinTime">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Promedio del Período</div>
+                    <div class="stat-value" id="humAvg">--<span class="stat-unit">%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Google Sheets Embedded Chart -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    📊 Gráfico de Google Sheets
+                </h3>
+                <span style="color: #718096; font-size: 0.9em;">Vista en vivo desde la hoja de cálculo</span>
+            </div>
+            
+            <div class="iframe-container">
+                <iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vRiuY6NQ9iYyrorVn215gcjaUpywelnKSjzXprlEmVeDxn1RDeA1M-HdFNkTJ96iw43ovc1xBo47AP1/pubhtml?gid=9685068&single=true"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+<script src="js/graphics.js"></script>
+
+</body>
+</html>
