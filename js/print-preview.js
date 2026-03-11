@@ -1,404 +1,718 @@
-// ═══════════════════════════════════════════════════════════════════════════
-//  SCRIPT DE VISTA PREVIA DE IMPRESIÓN - VERSIÓN FINAL CORREGIDA
-//  Sistema de Control de Temperatura y Humedad
-// ═══════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════
+//  SISTEMA DE CONTROL DE TEMPERATURA Y HUMEDAD
+//  Migración de Datos - Versión 1.0.4
+// ═════════════════════════════════════════════════════════════════════════
 
-class PrintPreviewManager {
-    constructor() {
-        this.config = {
-            paperSize: 'letter',
-            orientation: 'landscape',
-            scale: 57,
-            marginTop: 0.1,
-            marginBottom: 0.1,
-            marginLeft: 0.1,
-            marginRight: 0.1,
-            showGridlines: true,
-            showHeaders: false
-        };
-        
-        this.spreadsheetId = null;
-        this.gid = null;
-        this.sheetName = 'GRAFICO_FORMATO';
-        
-        this.init();
-    }
+let SCRIPT_URL = localStorage.getItem('scriptUrl') || '';
+let historicalData = {};
+
+// ═════════════════════════════════════════════════════════════════════════
+//  FUNCIÓN DE NOTIFICACIONES (DEBE IR PRIMERO)
+// ═════════════════════════════════════════════════════════════════════════
+
+function showNotification(message, type = 'info') {
+    // Remover notificación anterior
+    const existing = document.querySelector('.notification-toast');
+    if (existing) existing.remove();
     
-    init() {
-        console.log('🚀 Inicializando PrintPreviewManager...');
-        this.loadUrlParams();
-        this.setupEventListeners();
-        this.loadSavedConfig();
-        this.loadPreview();
-        this.updateSummary();
-    }
+    // Iconos por tipo
+    const icons = {
+        info: 'ℹ️',
+        success: '✅',
+        error: '❌',
+        warning: '⚠️'
+    };
     
-    loadUrlParams() {
-        const params = new URLSearchParams(window.location.search);
-        this.spreadsheetId = params.get('sheetId');
-        this.gid = params.get('gid');
-        if (params.get('sheetName')) {
-            this.sheetName = params.get('sheetName');
-        }
-        
-        console.log('📋 Parámetros cargados:', {
-            spreadsheetId: this.spreadsheetId,
-            gid: this.gid,
-            sheetName: this.sheetName
-        });
-    }
+    // Colores por tipo
+    const colors = {
+        info: '#3182ce',
+        success: '#38a169',
+        error: '#e53e3e',
+        warning: '#dd6b20'
+    };
     
-    setupEventListeners() {
-        // Configuración de papel
-        document.getElementById('paperSize').addEventListener('change', (e) => {
-            this.config.paperSize = e.target.value;
-            this.updateSummary();
-        });
-        
-        // Botones de orientación
-        document.querySelectorAll('.orientation-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.orientation-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.config.orientation = e.target.dataset.orientation;
-                this.updateSummary();
-            });
-        });
-        
-        // Escala
-        document.getElementById('scale').addEventListener('input', (e) => {
-            this.config.scale = parseInt(e.target.value);
-            document.getElementById('scaleValue').textContent = this.config.scale;
-            document.getElementById('resolutionInfo').textContent = `Escala: ${this.config.scale}%`;
-            this.updateSummary();
-        });
-        
-        document.getElementById('decreaseScale').addEventListener('click', () => {
-            const scale = Math.max(50, this.config.scale - 5);
-            this.config.scale = scale;
-            document.getElementById('scale').value = scale;
-            document.getElementById('scaleValue').textContent = scale;
-            document.getElementById('resolutionInfo').textContent = `Escala: ${scale}%`;
-            this.updateSummary();
-        });
-        
-        document.getElementById('increaseScale').addEventListener('click', () => {
-            const scale = Math.min(150, this.config.scale + 5);
-            this.config.scale = scale;
-            document.getElementById('scale').value = scale;
-            document.getElementById('scaleValue').textContent = scale;
-            document.getElementById('resolutionInfo').textContent = `Escala: ${scale}%`;
-            this.updateSummary();
-        });
-        
-        // Márgenes
-        ['marginTop', 'marginBottom', 'marginLeft', 'marginRight'].forEach(margin => {
-            document.getElementById(margin).addEventListener('change', (e) => {
-                this.config[margin] = parseFloat(e.target.value);
-                this.updateSummary();
-            });
-        });
-        
-        // Opciones
-        document.getElementById('showGridlines').addEventListener('change', (e) => {
-            this.config.showGridlines = e.target.checked;
-        });
-        
-        document.getElementById('showHeaders').addEventListener('change', (e) => {
-            this.config.showHeaders = e.target.checked;
-        });
-        
-        // Botones de acción
-        document.getElementById('downloadPDF').addEventListener('click', () => this.downloadPDF());
-        document.getElementById('resetConfig').addEventListener('click', () => this.resetConfig());
-        document.getElementById('closePreview').addEventListener('click', () => this.closePreview());
-    }
+    // Crear notificación
+    const notification = document.createElement('div');
+    notification.className = `notification-toast notification-${type}`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 20px;
+        background: ${colors[type]};
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        max-width: 400px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        transform: translateX(450px);
+        transition: transform 0.3s ease;
+        white-space: pre-line;
+    `;
     
-    async loadPreview() {
-        const loadingMessage = document.getElementById('loadingMessage');
-        const pageContainer = document.getElementById('pageContainer');
-        
-        try {
-            if (!this.spreadsheetId || !this.gid) {
-                throw new Error('No se proporcionaron parámetros de hoja');
-            }
-            
-            console.log('📄 Preparando vista previa...');
-            
-            // Mostrar mensaje informativo en lugar del spinner
-            loadingMessage.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#4285f4" style="margin-bottom: 20px;">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                    <h3 style="color: #202124; margin-bottom: 10px; font-size: 22px;">✅ Configuración Lista</h3>
-                    <p style="color: #5f6368; font-size: 15px; line-height: 1.6; max-width: 450px; margin: 0 auto;">
-                        Ajusta los parámetros de impresión en el panel izquierdo según tus necesidades.
-                    </p>
-                    <div style="margin-top: 30px; padding: 24px; background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%); border-radius: 12px; max-width: 500px; margin: 30px auto 0; border: 1px solid #dadce0;">
-                        <p style="color: #202124; font-weight: 600; margin-bottom: 12px; font-size: 15px;">📊 Hoja a exportar:</p>
-                        <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 8px;">
-                            <p style="color: #5f6368; font-size: 13px; margin: 0;">
-                                <strong style="color: #202124;">Nombre:</strong> ${this.sheetName}
-                            </p>
-                        </div>
-                        <div style="background: white; padding: 12px; border-radius: 6px;">
-                            <p style="color: #5f6368; font-size: 13px; margin: 0;">
-                                <strong style="color: #202124;">ID Hoja:</strong> ${this.gid}
-                            </p>
-                        </div>
-                    </div>
-                    <div style="margin-top: 30px; padding: 16px; background: #e8f0fe; border-radius: 8px; border-left: 4px solid #4285f4;">
-                        <p style="color: #185abc; font-size: 14px; font-weight: 500; margin: 0;">
-                            💡 Cuando termines de configurar, haz click en <strong>"💾 Descargar PDF"</strong>
-                        </p>
-                    </div>
-                </div>
-            `;
-            
-            // Ocultar el contenedor del iframe
-            pageContainer.style.display = 'none';
-            
-        } catch (error) {
-            console.error('❌ Error cargando vista previa:', error);
-            loadingMessage.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ea4335" style="margin-bottom: 20px;">
-                        <circle cx="12" cy="12" r="10" stroke-width="2"/>
-                        <path stroke-linecap="round" stroke-width="2" d="M12 8v4m0 4h.01"/>
-                    </svg>
-                    <p style="color: #ea4335; font-weight: 600; font-size: 18px;">❌ Error al cargar</p>
-                    <p style="font-size: 13px; color: #5f6368; margin-top: 10px; max-width: 400px;">${error.message}</p>
-                </div>
-            `;
+    notification.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <span style="font-size: 24px; flex-shrink: 0;">${icons[type] || icons.info}</span>
+            <span style="flex: 1; line-height: 1.5;">${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" 
+                    style="background: transparent; border: none; color: white; cursor: pointer; font-size: 24px; padding: 0 5px; flex-shrink: 0; line-height: 1;"
+                    title="Cerrar">×</button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Animación de entrada
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Auto-remover
+    const duration = type === 'error' ? 8000 : 5000;
+    setTimeout(() => {
+        notification.style.transform = 'translateX(450px)';
+        setTimeout(() => notification.remove(), 300);
+    }, duration);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  API HELPER
+// ═════════════════════════════════════════════════════════════════════════
+
+async function callAppsScript(action, data = {}) {
+    if (!SCRIPT_URL) {
+        SCRIPT_URL = prompt('Por favor ingrese la URL de Apps Script:');
+        if (SCRIPT_URL) {
+            localStorage.setItem('scriptUrl', SCRIPT_URL);
+        } else {
+            return { success: false, message: 'URL no proporcionada' };
         }
     }
     
-    updateSummary() {
-        const orientation = this.config.orientation === 'landscape' ? 'Horizontal' : 'Vertical';
-        const summary = `${this.config.paperSize.toUpperCase()} | ${orientation} | ${this.config.scale}% | Márgenes: ${this.config.marginTop}cm`;
-        document.getElementById('summaryText').textContent = summary;
-        this.saveConfig();
-    }
+    const params = new URLSearchParams({ action, ...data });
+    const response = await fetch(`${SCRIPT_URL}?${params}`, {
+        method: 'GET',
+        redirect: 'follow'
+    });
     
-    async downloadPDF() {
-        try {
-            const button = document.getElementById('downloadPDF');
-            const originalText = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = '⏳ Preparando descarga...';
-            
-            console.log('📥 Preparando PDF con configuración:', this.config);
-            
-            if (!this.spreadsheetId || !this.gid) {
-                throw new Error('No se encontró la información de la hoja');
-            }
-            
-            // Construir URL de exportación DIRECTA de Google Sheets
-            const exportParams = {
-                format: 'pdf',
-                size: this.config.paperSize.toUpperCase(),
-                portrait: this.config.orientation === 'portrait' ? 'true' : 'false',
-                fitw: 'true',
-                scale: this.config.scale,
-                top_margin: this.config.marginTop,
-                bottom_margin: this.config.marginBottom,
-                left_margin: this.config.marginLeft,
-                right_margin: this.config.marginRight,
-                sheetnames: this.config.showHeaders ? 'true' : 'false',
-                printtitle: this.config.showHeaders ? 'true' : 'false',
-                pagenum: 'UNDEFINED',
-                gridlines: this.config.showGridlines ? 'true' : 'false',
-                fzr: 'false',
-                gid: this.gid
-            };
-            
-            // Construir query string
-            const queryString = Object.entries(exportParams)
-                .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-                .join('&');
-            
-            // URL DIRECTA de exportación de Google Sheets
-            const exportUrl = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}/export?${queryString}`;
-            
-            console.log('🔗 URL de exportación:', exportUrl);
-            
-            this.showNotification('⏳ Iniciando descarga del PDF...', 'info');
-            
-            // Abrir en nueva ventana (esto fuerza la descarga)
-            const downloadWindow = window.open(exportUrl, '_blank');
-            
-            if (!downloadWindow) {
-                throw new Error('Bloqueador de ventanas emergentes activado. Permite ventanas emergentes para este sitio.');
-            }
-            
-            // Mostrar mensaje de éxito
-            setTimeout(() => {
-                this.showNotification('✅ Descarga iniciada. Revisa tu carpeta de Descargas.', 'success');
-                
-                // Mostrar instrucciones
-                setTimeout(() => {
-                    const showConfig = confirm(
-                        '📄 DESCARGA INICIADA\n\n' +
-                        '✅ El PDF se está descargando automáticamente.\n\n' +
-                        '📁 Revisa tu carpeta de Descargas.\n\n' +
-                        'Si no se descargó:\n' +
-                        '1. Verifica el bloqueador de descargas del navegador\n' +
-                        '2. Permite descargas para docs.google.com\n\n' +
-                        '¿Deseas ver la configuración aplicada?'
-                    );
-                    
-                    if (showConfig) {
-                        const config = 
-                            `📋 CONFIGURACIÓN APLICADA:\n\n` +
-                            `📄 Papel: ${this.config.paperSize.toUpperCase()}\n` +
-                            `📐 Orientación: ${this.config.orientation === 'landscape' ? 'Horizontal' : 'Vertical'}\n` +
-                            `🔍 Escala: ${this.config.scale}%\n` +
-                            `📏 Márgenes:\n` +
-                            `   Superior: ${this.config.marginTop}cm\n` +
-                            `   Inferior: ${this.config.marginBottom}cm\n` +
-                            `   Izquierda: ${this.config.marginLeft}cm\n` +
-                            `   Derecha: ${this.config.marginRight}cm\n` +
-                            `🎨 Cuadrícula: ${this.config.showGridlines ? 'Sí' : 'No'}\n` +
-                            `📌 Encabezados: ${this.config.showHeaders ? 'Sí' : 'No'}`;
-                        
-                        alert(config);
-                    }
-                }, 1000);
-            }, 500);
-            
-        } catch (error) {
-            console.error('❌ Error:', error);
-            this.showNotification(`❌ Error: ${error.message}`, 'error');
-            
-            // Ofrecer alternativa manual
-            setTimeout(() => {
-                const fallback = confirm(
-                    '❌ ERROR AL DESCARGAR\n\n' +
-                    error.message + '\n\n' +
-                    '¿Deseas abrir Google Sheets para descargar manualmente?\n\n' +
-                    '(Luego presiona Ctrl+P en Sheets para imprimir/descargar)'
-                );
-                
-                if (fallback) {
-                    const sheetsUrl = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}/edit#gid=${this.gid}`;
-                    window.open(sheetsUrl, '_blank');
-                    
-                    setTimeout(() => {
-                        alert(
-                            '📋 INSTRUCCIONES MANUALES:\n\n' +
-                            '1. En Google Sheets, presiona Ctrl+P (Cmd+P en Mac)\n' +
-                            '2. Configura según tus preferencias:\n' +
-                            `   • Papel: ${this.config.paperSize.toUpperCase()}\n` +
-                            `   • Orientación: ${this.config.orientation === 'landscape' ? 'Horizontal' : 'Vertical'}\n` +
-                            `   • Escala: ${this.config.scale}%\n` +
-                            `   • Márgenes: ${this.config.marginTop}cm\n` +
-                            '3. Selecciona "Guardar como PDF"\n' +
-                            '4. Descarga'
-                        );
-                    }, 500);
-                }
-            }, 500);
-            
-        } finally {
-            button.disabled = false;
-            button.innerHTML = originalText;
+    return await response.json();
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  INICIALIZAR
+// ═════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!SCRIPT_URL) {
+        SCRIPT_URL = prompt('Por favor ingrese la URL de Apps Script:');
+        if (SCRIPT_URL) {
+            localStorage.setItem('scriptUrl', SCRIPT_URL);
         }
     }
     
-    resetConfig() {
-        this.config = {
-            paperSize: 'letter',
-            orientation: 'landscape',
-            scale: 57,
-            marginTop: 0.1,
-            marginBottom: 0.1,
-            marginLeft: 0.1,
-            marginRight: 0.1,
-            showGridlines: true,
-            showHeaders: false
-        };
-        
-        // Actualizar UI
-        document.getElementById('paperSize').value = 'letter';
-        document.getElementById('scale').value = 57;
-        document.getElementById('scaleValue').textContent = '57';
-        document.getElementById('marginTop').value = 0.1;
-        document.getElementById('marginBottom').value = 0.1;
-        document.getElementById('marginLeft').value = 0.1;
-        document.getElementById('marginRight').value = 0.1;
-        document.getElementById('showGridlines').checked = true;
-        document.getElementById('showHeaders').checked = false;
-        
-        document.querySelectorAll('.orientation-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelector('[data-orientation="landscape"]').classList.add('active');
-        
-        this.updateSummary();
-        this.showNotification('🔄 Configuración restablecida', 'info');
+    loadYearSheets();
+    loadHistoricalData();
+    updateCurrentMonthStatus();
+    
+    // Event listeners para los selectores
+    const monthSelect = document.getElementById('migrationMonth');
+    const yearSelect = document.getElementById('targetYear');
+    
+    if (monthSelect) {
+        monthSelect.addEventListener('change', updateMigrationPreview);
     }
     
-    closePreview() {
-        if (confirm('¿Cerrar la vista previa de impresión?')) {
-            window.close();
+    if (yearSelect) {
+        yearSelect.addEventListener('change', updateMigrationPreview);
+    }
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+//  CARGAR HOJAS DE AÑOS
+// ═════════════════════════════════════════════════════════════════════════
+
+async function loadYearSheets() {
+    try {
+        showNotification('🔄 Cargando hojas de años...', 'info');
+        
+        const result = await callAppsScript('getYearSheets');
+        
+        if (result.success) {
+            renderYearsGrid(result.data);
+            showNotification(`✅ ${result.data.length} hojas cargadas`, 'success');
+        } else {
+            throw new Error(result.message);
         }
-    }
-    
-    saveConfig() {
-        localStorage.setItem('printConfig', JSON.stringify(this.config));
-    }
-    
-    loadSavedConfig() {
-        const saved = localStorage.getItem('printConfig');
-        if (saved) {
-            try {
-                const savedConfig = JSON.parse(saved);
-                this.config = { ...this.config, ...savedConfig };
-                
-                // Actualizar UI
-                document.getElementById('paperSize').value = this.config.paperSize;
-                document.getElementById('scale').value = this.config.scale;
-                document.getElementById('scaleValue').textContent = this.config.scale;
-                document.getElementById('marginTop').value = this.config.marginTop;
-                document.getElementById('marginBottom').value = this.config.marginBottom;
-                document.getElementById('marginLeft').value = this.config.marginLeft;
-                document.getElementById('marginRight').value = this.config.marginRight;
-                document.getElementById('showGridlines').checked = this.config.showGridlines;
-                document.getElementById('showHeaders').checked = this.config.showHeaders;
-                
-                document.querySelectorAll('.orientation-btn').forEach(btn => {
-                    if (btn.dataset.orientation === this.config.orientation) {
-                        btn.classList.add('active');
-                    } else {
-                        btn.classList.remove('active');
-                    }
-                });
-                
-                console.log('✅ Configuración guardada cargada:', this.config);
-            } catch (e) {
-                console.warn('⚠️ No se pudo cargar configuración guardada');
-            }
-        }
-    }
-    
-    showNotification(message, type = 'info') {
-        // Eliminar notificaciones anteriores
-        const oldNotifications = document.querySelectorAll('.notification');
-        oldNotifications.forEach(n => n.remove());
         
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.remove();
-        }, 4000);
+    } catch (error) {
+        console.error('Error loading year sheets:', error);
+        showNotification('❌ Error al cargar hojas: ' + error.message, 'error');
     }
 }
 
-// Inicializar cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('✅ DOM cargado, iniciando PrintPreviewManager...');
-    const manager = new PrintPreviewManager();
-    window.printPreviewManager = manager;
-});
+// ═════════════════════════════════════════════════════════════════════════
+//  RENDERIZAR GRID DE AÑOS
+// ═════════════════════════════════════════════════════════════════════════
+
+function renderYearsGrid(years) {
+    const container = document.getElementById('yearSheetsContainer');
+    if (!container) return;
+
+    if (years.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding: 40px; color: #718096;">
+                <p style="font-size:1.1em;">No hay hojas de años disponibles</p>
+                <button class="btn btn-primary" style="margin-top:15px;" onclick="openCreateYearModal()">
+                    ➕ Crear Nueva Hoja
+                </button>
+            </div>`;
+        return;
+    }
+
+    const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+                   'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+    container.innerHTML = years.map(yearData => `
+        <div style="
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            transition: box-shadow 0.2s;
+        " onmouseover="this.style.boxShadow='0 6px 20px rgba(102,126,234,0.18)'"
+           onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.07)'">
+
+            <!-- Header -->
+            <div style="
+                background: ${yearData.active
+                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                    : 'linear-gradient(135deg, #4a5568 0%, #2d3748 100%)'};
+                padding: 16px 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            ">
+                <h3 style="color:white; margin:0; font-size:1.4em; font-weight:700;">
+                    📁 ${yearData.year}
+                </h3>
+                ${yearData.active
+                    ? '<span style="background:rgba(255,255,255,0.25); color:white; padding:3px 10px; border-radius:20px; font-size:0.78em; font-weight:600;">✅ ACTIVO</span>'
+                    : '<span style="background:rgba(255,255,255,0.15); color:rgba(255,255,255,0.8); padding:3px 10px; border-radius:20px; font-size:0.78em;">Archivado</span>'
+                }
+            </div>
+
+            <!-- Stats -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid #e2e8f0;">
+                <div style="padding: 14px 16px; text-align:center; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size:0.72em; color:#718096; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Meses</div>
+                    <div style="font-size:1.4em; font-weight:700; color:#2d3748;">${yearData.months}</div>
+                </div>
+                <div style="padding: 14px 16px; text-align:center; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size:0.72em; color:#718096; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Registros</div>
+                    <div style="font-size:1.4em; font-weight:700; color:#667eea;">${yearData.records}</div>
+                </div>
+                <div style="padding: 14px 16px; text-align:center;">
+                    <div style="font-size:0.72em; color:#718096; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Actualizado</div>
+                    <div style="font-size:0.82em; font-weight:600; color:#4a5568;">${yearData.lastUpdate}</div>
+                </div>
+            </div>
+
+            <!-- Filtro por mes -->
+            <div style="padding: 14px 16px; background: #f7fafc; border-bottom: 1px solid #e2e8f0;">
+                <label style="font-size:0.78em; color:#718096; font-weight:600; display:block; margin-bottom:6px;">
+                    📆 FILTRAR POR MES
+                </label>
+                <select id="monthFilter_${yearData.year}" class="form-control"
+                    style="font-size:0.88em; padding: 7px 10px; border-radius:8px;"
+                    onchange="viewYearDataFiltered('${yearData.year}', this.value)">
+                    <option value="">— Todos los meses —</option>
+                    ${MESES.map(m => `<option value="${m}">${m}</option>`).join('')}
+                </select>
+            </div>
+
+            <!-- Acciones -->
+            <div style="padding: 14px 16px; display: flex; gap: 8px;">
+                <button class="btn btn-primary" style="flex:1; font-size:0.85em; padding:8px 0;"
+                    onclick="viewYearDataFiltered('${yearData.year}', document.getElementById('monthFilter_${yearData.year}').value)">
+                    👁️ Ver Datos
+                </button>
+                <button class="btn btn-outline" style="flex:1; font-size:0.85em; padding:8px 0;"
+                    onclick="openSheetInGoogleSheets('${yearData.gid}')">
+                    🔗 Sheets
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  ACTUALIZAR ESTADO DEL MES ACTUAL
+// ═════════════════════════════════════════════════════════════════════════
+
+async function updateCurrentMonthStatus() {
+    try {
+        const result = await callAppsScript('getData');
+        
+        if (result.success) {
+            const recordCount = result.data.length;
+            const requiredRecords = 62;
+            const progress = Math.min((recordCount / requiredRecords) * 100, 100);
+            
+            document.getElementById('currentRecords').textContent = recordCount;
+            document.getElementById('recordsProgress').style.width = progress + '%';
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('monthProgress').textContent = Math.round(progress) + '%';
+            
+            // Calcular días restantes
+            const now = new Date();
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            const daysRemaining = lastDay.getDate() - now.getDate();
+            document.getElementById('daysRemaining').textContent = daysRemaining;
+            
+            // Actualizar nombre del mes
+            const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                               'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            document.getElementById('currentMonthName').textContent = 
+                `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+        }
+    } catch (error) {
+        console.error('Error updating month status:', error);
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  ACTUALIZAR VISTA PREVIA DE MIGRACIÓN
+// ═════════════════════════════════════════════════════════════════════════
+
+async function updateMigrationPreview() {
+    const month = document.getElementById('migrationMonth').value;
+    const year = document.getElementById('targetYear').value;
+    
+    // Actualizar vista previa
+    document.getElementById('destSheet').textContent = 
+        year ? `${year} (Mes: ${month || 'No seleccionado'})` : 'No seleccionado';
+    
+    // Obtener cantidad de registros actuales
+    try {
+        const result = await callAppsScript('getData');
+        if (result.success) {
+            document.getElementById('recordsToMigrate').textContent = result.data.length;
+        }
+    } catch (error) {
+        console.error('Error loading records count:', error);
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  EJECUTAR MIGRACIÓN DESDE EL PANEL
+// ═════════════════════════════════════════════════════════════════════════
+
+async function executeMigrationFromPanel() {
+    const month = document.getElementById('migrationMonth').value;
+    const year = document.getElementById('targetYear').value;
+    
+    if (!month || !year) {
+        showNotification('⚠️ Por favor selecciona mes y año', 'error');
+        return;
+    }
+    
+    if (!confirm(`¿Estás seguro de migrar todos los datos actuales a ${month} ${year}?\n\nEsta acción vaciará la hoja BASE.`)) {
+        return;
+    }
+    
+    // Mostrar modal de progreso
+    document.getElementById('migrationModal').style.display = 'flex';
+    
+    try {
+        // Simular progreso
+        for (let i = 0; i <= 100; i += 20) {
+            document.getElementById('migrationProgressBar').style.width = i + '%';
+            document.getElementById('migrationProgressText').textContent = i + '%';
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        const result = await callAppsScript('migrateData', { year, month });
+        
+        // Ocultar modal
+        document.getElementById('migrationModal').style.display = 'none';
+        
+        if (result.success) {
+            showNotification('✅ Migración completada exitosamente', 'success');
+            
+            // Actualizar vistas
+            setTimeout(() => {
+                loadYearSheets();
+                loadHistoricalData();
+                updateCurrentMonthStatus();
+            }, 500);
+            
+            alert(
+                `✅ MIGRACIÓN EXITOSA\n\n` +
+                `Los datos fueron migrados a:\n` +
+                `📅 Año: ${year}\n` +
+                `📆 Mes: ${month}\n\n` +
+                `La hoja BASE está ahora vacía.`
+            );
+        } else {
+            showNotification(`❌ Error: ${result.message}`, 'error');
+        }
+        
+    } catch (error) {
+        document.getElementById('migrationModal').style.display = 'none';
+        console.error('Error:', error);
+        showNotification(`❌ Error: ${error.message}`, 'error');
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  RESTAURAR MIGRACIÓN (DESHACER)
+// ═════════════════════════════════════════════════════════════════════════
+
+function showRestoreModal() {
+    document.getElementById('restoreModal').style.display = 'flex';
+    loadAvailableYears();
+}
+
+function closeRestoreModal() {
+    document.getElementById('restoreModal').style.display = 'none';
+}
+
+async function loadAvailableYears() {
+    try {
+        const result = await callAppsScript('getYearSheets');
+        
+        if (result.success) {
+            const select = document.getElementById('restoreYear');
+            select.innerHTML = '<option value="">Seleccionar año...</option>';
+            
+            result.data.forEach(sheet => {
+                const option = document.createElement('option');
+                option.value = sheet.year;
+                option.textContent = `${sheet.year} (${sheet.months} meses, ${sheet.records} registros)`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading years:', error);
+        showNotification('❌ Error al cargar años disponibles', 'error');
+    }
+}
+
+async function executeRestore() {
+    const year = document.getElementById('restoreYear').value;
+    const month = document.getElementById('restoreMonth').value;
+    
+    if (!year || !month) {
+        showNotification('⚠️ Por favor selecciona año y mes', 'error');
+        return;
+    }
+    
+    if (!confirm(`¿Estás seguro de que deseas restaurar los datos de ${month} ${year} a la hoja BASE?\n\nEsta acción eliminará esos registros del historial del año.`)) {
+        return;
+    }
+    
+    try {
+        showNotification(`🔄 Restaurando datos de ${month} ${year}...`, 'info');
+        
+        const result = await callAppsScript('restoreMigration', { year, month });
+        
+        if (result.success) {
+            showNotification(`✅ ${result.recordsRestored} registros restaurados exitosamente`, 'success');
+            
+            // Cerrar modal
+            closeRestoreModal();
+            
+            // Actualizar listado
+            setTimeout(() => {
+                loadYearSheets();
+                loadHistoricalData();
+                updateCurrentMonthStatus();
+            }, 500);
+            
+            // Mostrar resumen
+            setTimeout(() => {
+                alert(
+                    `✅ RESTAURACIÓN EXITOSA\n\n` +
+                    `${result.recordsRestored} registros de ${month} ${year}\n` +
+                    `fueron restaurados a la hoja BASE.\n\n` +
+                    `Los registros fueron eliminados del historial del año.`
+                );
+            }, 1000);
+        } else {
+            showNotification(`❌ Error: ${result.message}`, 'error');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification(`❌ Error: ${error.message}`, 'error');
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  CREAR NUEVA HOJA DE AÑO
+// ═════════════════════════════════════════════════════════════════════════
+
+function openCreateYearModal() {
+    document.getElementById('createYearModal').style.display = 'flex';
+}
+
+function closeCreateYearModal() {
+    document.getElementById('createYearModal').style.display = 'none';
+}
+
+async function executeCreateYear() {
+    const year = document.getElementById('newYearValue').value;
+    
+    if (!year || !/^\d{4}$/.test(year)) {
+        showNotification('⚠️ Por favor ingresa un año válido (YYYY)', 'error');
+        return;
+    }
+    
+    try {
+        showNotification('⏳ Creando hoja...', 'info');
+        
+        const result = await callAppsScript('createYearSheet', { year });
+        
+        if (result.success) {
+            showNotification(`✅ Hoja ${year} creada exitosamente`, 'success');
+            closeCreateYearModal();
+            loadYearSheets();
+        } else {
+            showNotification(`❌ Error: ${result.message}`, 'error');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification(`❌ Error: ${error.message}`, 'error');
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  VER DATOS DE UN AÑO
+// ═════════════════════════════════════════════════════════════════════════
+
+async function viewYearData(year) {
+    try {
+        showNotification(`📊 Cargando datos de ${year}...`, 'info');
+        
+        const result = await callAppsScript('getHistoricalData', { year });
+        
+        if (result.success) {
+            renderHistoricalData(year, result.data);
+            showNotification(`✅ Datos de ${year} cargados`, 'success');
+        } else {
+            throw new Error(result.message);
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('❌ Error al cargar datos: ' + error.message, 'error');
+    }
+}
+
+function renderHistoricalData(year, data) {
+    const container = document.getElementById('historicalDataContainer');
+    if (!container) return;
+
+    if (!data || data.length === 0) {
+        container.innerHTML = `
+            <p style="text-align: center; color: #718096; padding: 40px;">
+                No hay datos disponibles para ${year}
+            </p>`;
+        return;
+    }
+
+    // Agrupar por mes correctamente
+    const dataByMonth = {};
+    data.forEach(record => {
+        const mes = record.mes || 'Sin mes';
+        if (!dataByMonth[mes]) dataByMonth[mes] = [];
+        dataByMonth[mes].push(record);
+    });
+
+    let html = `
+        <div style="padding: 15px 20px; border-bottom: 2px solid #667eea; margin-bottom: 10px;">
+            <h3 style="color: #2d3748;">📅 Datos de ${year} — ${data.length} registros totales</h3>
+        </div>`;
+
+    Object.keys(dataByMonth).sort().forEach(month => {
+        const monthData = dataByMonth[month];
+
+        // Calcular estadísticas del mes
+        const temps = monthData.map(r => parseFloat(r.temperatura)).filter(v => !isNaN(v) && v > 0);
+        const hums  = monthData.map(r => {
+            let h = parseFloat(String(r.humedad).replace('%','').trim());
+            if (!isNaN(h) && h > 0 && h < 1) h = Math.round(h * 100);
+            return h;
+        }).filter(v => !isNaN(v) && v > 0);
+
+        const tempAvg = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : '--';
+        const humAvg  = hums.length  ? Math.round(hums.reduce((a,b)=>a+b,0)/hums.length)    : '--';
+
+        html += `
+            <div style="margin: 15px 20px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
+                <div style="background: #667eea; padding: 12px 20px; display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="color: white; margin: 0;">📆 ${month} — ${monthData.length} registros</h4>
+                    <span style="color: rgba(255,255,255,0.85); font-size: 0.85em;">
+                        Temp promedio: ${tempAvg}°C &nbsp;|&nbsp; Humedad promedio: ${humAvg}%
+                    </span>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="data-table" style="margin:0;">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>No. HC</th>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Jornada</th>
+                                <th>Día</th>
+                                <th>Temp (°C)</th>
+                                <th>Humedad (%)</th>
+                                <th>Persona</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${monthData.map(record => {
+                                // Limpiar humedad
+                                let h = parseFloat(String(record.humedad || '0').replace('%','').trim());
+                                if (!isNaN(h) && h > 0 && h < 1) h = Math.round(h * 100);
+                                const humDisplay = Math.round(h) || 0;
+
+                                // Limpiar temperatura
+                                const tempDisplay = parseFloat(record.temperatura) || 0;
+
+                                return `
+                                <tr>
+                                    <td>${record.id || '-'}</td>
+                                    <td style="font-weight:bold; color:#667eea;">${record.no_hc || '-'}</td>
+                                    <td>${record.fecha || '-'}</td>
+                                    <td>${record.hora || '-'}</td>
+                                    <td>
+                                        <span class="badge badge-${record.jornada === 'MAÑANA' ? 'info' : 'success'}">
+                                            ${record.jornada || '-'}
+                                        </span>
+                                    </td>
+                                    <td>${record.dia || '-'}</td>
+                                    <td>${tempDisplay.toFixed(1)}°C</td>
+                                    <td>${humDisplay}%</td>
+                                    <td>${record.persona || '-'}</td>
+                                    <td>${record.observaciones || '-'}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+
+
+// ═════════════════════════════════════════════════════════════════════════
+//  CARGAR DATOS HISTÓRICOS
+// ═════════════════════════════════════════════════════════════════════════
+
+async function loadHistoricalData() {
+    try {
+        const result = await callAppsScript('getAllHistoricalData');
+        
+        if (result.success) {
+            historicalData = result.data;
+            
+            // Renderizar todos los años automáticamente
+            const container = document.getElementById('historicalDataContainer');
+            if (container) {
+                if (Object.keys(historicalData).length === 0) {
+                    container.innerHTML = `
+                        <p style="text-align: center; color: #718096; padding: 40px;">
+                            No hay datos históricos disponibles
+                        </p>
+                    `;
+                } else {
+                    container.innerHTML = '<p style="padding: 20px; color: #718096;">Datos históricos cargados. Click en "Ver Datos" de cualquier año para visualizar.</p>';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading historical data:', error);
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  ABRIR EN GOOGLE SHEETS
+// ═════════════════════════════════════════════════════════════════════════
+
+function openSheetInGoogleSheets(gid) {
+    const spreadsheetId = '1YRAztDSETnV5GcsPhtfrvKM-8k922XxzUcLHiLHwBcI';
+    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+async function viewYearDataFiltered(year, month) {
+    try {
+        showNotification(`📊 Cargando datos de ${year}${month ? ' — ' + month : ''}...`, 'info');
+
+        const result = await callAppsScript('getHistoricalData', { year });
+
+        if (!result.success) throw new Error(result.message);
+
+        let data = result.data;
+
+        // Filtrar por mes si se seleccionó uno
+        if (month && month !== '') {
+            data = data.filter(r => r.mes === month);
+        }
+
+        if (data.length === 0) {
+            const container = document.getElementById('historicalDataContainer');
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px; color:#718096;">
+                    <p style="font-size:1.1em;">No hay registros para 
+                        <strong>${month || 'este año'}</strong> en ${year}
+                    </p>
+                </div>`;
+            // Scroll suave al explorador
+            document.getElementById('historicalDataContainer')
+                .scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+
+        renderHistoricalData(year, data);
+        showNotification(`✅ ${data.length} registros cargados`, 'success');
+
+        // Scroll suave al explorador
+        setTimeout(() => {
+            document.getElementById('historicalDataContainer')
+                .scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 200);
+
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('❌ Error: ' + error.message, 'error');
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  HACER FUNCIONES GLOBALES
+// ═════════════════════════════════════════════════════════════════════════
+
+window.loadYearSheets = loadYearSheets;
+window.executeMigrationFromPanel = executeMigrationFromPanel;
+window.showRestoreModal = showRestoreModal;
+window.closeRestoreModal = closeRestoreModal;
+window.executeRestore = executeRestore;
+window.openCreateYearModal = openCreateYearModal;
+window.closeCreateYearModal = closeCreateYearModal;
+window.executeCreateYear = executeCreateYear;
+window.viewYearData = viewYearData;
+window.openSheetInGoogleSheets = openSheetInGoogleSheets;
+window.loadHistoricalData = loadHistoricalData;
+window.loadYearSheets = loadYearSheets;
+window.viewYearDataFiltered = viewYearDataFiltered;
