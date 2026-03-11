@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Control de Temperatura y Humedad</title>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .font-mono { font-family: 'Courier New', Courier, monospace; font-weight: bold; }
+        .bulk-input { width: 100%; padding: 4px; border: 1px solid var(--primary); border-radius: 4px; }
+        th.sortable { cursor: pointer; transition: background 0.2s; }
+        th.sortable:hover { background-color: #edf2f7 !important; }
+        .actions-container { display: flex; gap: 10px; align-items: center; }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <!-- Header -->
@@ -14,7 +25,7 @@
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                 </svg>
-                <h1>Control Temp/Humedad Historias Clinicas</h1>
+                <h1>Control Temp/Humedad Historias Clínicas</h1>
             </div>
             <nav>
                 <a class="active" href="index.html">Tabla de Datos</a>
@@ -31,17 +42,9 @@
             <h2>⚙️ Configuración Inicial</h2>
             <div class="config-box">
                 <label><strong>URL de Apps Script:</strong></label>
-                <p style="color: #856404; margin: 10px 0; font-size: 0.9em;">
-                    Ingrese la URL de implementación de Google Apps Script (debe terminar en /exec)
-                </p>
-                <input type="text" 
-                       id="script-url-input" 
-                       class="form-control"
-                       placeholder="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"
-                       style="margin-top:10px;">
-                <button class="btn btn-success" onclick="saveConfiguration()" style="margin-top:15px;">
-                    💾 Guardar y Continuar
-                </button>
+                <p style="color: #856404; margin: 10px 0; font-size: 0.9em;">Ingrese la URL de implementación de Google Apps Script (debe terminar en /exec)</p>
+                <input type="text" id="script-url-input" class="form-control" placeholder="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec">
+                <button class="btn btn-success" onclick="saveConfiguration()" style="margin-top:15px;">💾 Guardar y Continuar</button>
             </div>
         </div>
 
@@ -49,21 +52,18 @@
         <div class="page-header" id="main-content" style="display:none;">
             <div>
                 <h2>Tabla de Datos de Temperatura y Humedad</h2>
-                <p style="color: #718096; margin-top: 5px;">Gestione todos los registros de temperatura y humedad</p>
+                <p style="color: #718096; margin-top: 5px;">Gestione todos los registros y use la edición masiva para cambios rápidos</p>
             </div>
             <div class="button-group">
-                <button class="btn btn-success" onclick="openAddModal()">
-                    ➕ Agregar Datos
-                </button>
-                <button class="btn btn-primary" onclick="loadData()">
-                    🔄 Actualizar
-                </button>
-                <button class="btn btn-info" onclick="window.location.href='graphics.html'">
-                    📈 Ver Gráficos
-                </button>
-                <button class="btn btn-warning" onclick="showHistory()">
-                    🕐 Histórico
-                </button>
+                <button class="btn btn-success" onclick="openAddModal()">➕ Agregar Datos</button>
+                
+                <div class="actions-container">
+                    <button id="btn-bulk-edit" class="btn btn-warning" onclick="toggleBulkEdit()">✏️ Edición Masiva</button>
+                    <button id="btn-save-bulk" class="btn btn-primary" style="display:none;" onclick="saveBulkChanges()">💾 Guardar Cambios</button>
+                </div>
+
+                <button class="btn btn-outline" onclick="loadData()">🔄 Actualizar</button>
+                <button class="btn btn-warning" onclick="showHistory()">🕐 Histórico</button>
             </div>
         </div>
 
@@ -73,31 +73,34 @@
         <!-- Loading -->
         <div class="loading" id="loading" style="display:none;">
             <div class="spinner"></div>
-            <p>Cargando datos...</p>
+            <p>Procesando datos...</p>
         </div>
 
         <!-- Data Table -->
         <div class="card" id="table-container" style="display:none;">
             <div class="table-responsive">
                 <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Fecha</th>
-                            <th>Hora</th>
-                            <th>Jornada</th>
-                            <th>Día</th>
-                            <th>Temperatura (°C)</th>
-                            <th>Humedad (%)</th>
-                            <th>Persona</th>
-                            <th>Observaciones</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
+                <thead>
+                    <tr>
+                        <th class="hide-column">ID</th>  <!-- ← NUEVO: columna ID oculta -->
+                        <th class="sortable" onclick="sortTable('no_hc')">No. HC ↕</th>  <!-- ← CAMBIAR 'hc' por 'no_hc' -->
+                        <th class="sortable" onclick="sortTable('fecha')">Fecha ↕</th>
+                        <th>Hora</th>
+                        <th>Jornada</th>
+                        <th class="sortable" onclick="sortTable('dia')">Día ↕</th>
+                        <th class="sortable" onclick="sortTable('temperatura')">Temp (°C) ↕</th>
+                        <th class="sortable" onclick="sortTable('humedad')">Hum (%) ↕</th>
+                        <th>Persona</th>
+                        <th>Observaciones</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+
+
                     <tbody id="data-tbody">
                         <tr>
-                            <td colspan="10" style="text-align:center; padding: 40px; color: #718096;">
-                                No hay datos disponibles
+                            <td colspan="11" style="text-align:center; padding: 40px;">No hay datos disponibles</td>
+
                             </td>
                         </tr>
                     </tbody>
@@ -116,7 +119,15 @@
             <div class="modal-body">
                 <form id="data-form" onsubmit="saveData(event)">
                     <input type="hidden" id="record-id">
-                    
+
+                    <div class="form-group">
+                        <label class="form-label">No. Historia Clínica *</label>
+                    <select id="no_hc" class="form-control" required>
+                        <option value="">-- Seleccione HC --</option>
+                    </select>
+                    </div>
+
+
                     <div class="form-group">
                         <label class="form-label">Fecha *</label>
                         <input type="date" id="fecha" class="form-control" required>
@@ -143,14 +154,12 @@
                     
                     <div class="form-group">
                         <label class="form-label">Temperatura (°C) *</label>
-                        <input type="number" id="temperatura" class="form-control" step="0.1" min="-50" max="100" required>
-                        <p class="form-helper">Ingrese la temperatura en grados Celsius</p>
+                        <input type="number" id="temperatura" class="form-control" step="0.1" required>
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Humedad (%) *</label>
                         <input type="number" id="humedad" class="form-control" min="0" max="100" required>
-                        <p class="form-helper">Ingrese el porcentaje de humedad (0-100)</p>
                     </div>
                     
                     <div class="form-group">
@@ -160,7 +169,7 @@
                     
                     <div class="form-group">
                         <label class="form-label">Observaciones</label>
-                        <textarea id="observaciones" class="form-control" rows="3" placeholder="Opcional: Ingrese observaciones adicionales"></textarea>
+                        <textarea id="observaciones" class="form-control" rows="2"></textarea>
                     </div>
                     
                     <div class="button-group" style="margin-top: 20px;">
@@ -180,21 +189,19 @@
                 <button class="close-modal" onclick="closeHistoryModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <div id="history-list" style="max-height: 400px; overflow-y: auto;"></div>
+                <div id="history-list" class="space-y-3 pr-2" style="max-height: 450px; overflow-y: auto; scrollbar-width: thin;"></div>
                 <div class="button-group" style="margin-top: 20px;">
-                    <button class="btn btn-warning" onclick="undoLastChange()">
-                        ↶ Deshacer Último Cambio
-                    </button>
-                    <button class="btn btn-info" onclick="redoLastChange()">
-                        ↷ Rehacer Último Cambio
-                    </button>
+                    <button class="btn btn-warning" onclick="undoLastChange()">↶ Deshacer</button>
+                    <button class="btn btn-info" onclick="redoLastChange()">↷ Rehacer</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="js/config.js"></script>
-<script src="js/app.js"></script>
-
+    <script src="js/app.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/graphics.js"></script>
+    <script src="js/migration.js"></script>
 </body>
 </html>
