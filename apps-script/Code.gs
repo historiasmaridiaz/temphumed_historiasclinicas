@@ -1,505 +1,375 @@
 // ═══════════════════════════════════════════════════════════════════
-//  SISTEMA DE CONTROL DE TEMPERATURA Y HUMEDAD
-//  Google Apps Script - Backend COMPLETO
-//  Versión: 1.0.5 - Con hoja GRAFICO separada de GRAFICO_FORMATO
+//  SISTEMA DE CONTROL DE TEMPERATURA Y HUMEDAD - BACKEND
+//  Versión: 1.6.0 - NUEVA ESTRUCTURA 10 COLUMNAS (ID oculto)
+//  Columnas: ID, No.HC, Fecha, Hora, Jornada, Día, Temp, Hum, Persona, Obs
 // ═══════════════════════════════════════════════════════════════════
 
-// CONFIGURACIÓN
 const SPREADSHEET_ID = '1YRAztDSETnV5GcsPhtfrvKM-8k922XxzUcLHiLHwBcI';
-const SHEET_BASE = 'BASE';
-const SHEET_GRAFICO = 'GRAFICO';
-const SHEET_GRAFICO_FORMATO = 'GRAFICO_FORMATO';
-const SHEET_2024 = '2024';
-const SHEET_2025 = '2025';
-const SHEET_DASHBOARD = 'DASHBOARD';
+const SHEET_BASE      = 'BASE';
+const SHEET_GRAFICO   = 'GRAFICO';
+const SHEET_HISTORIAL = 'HISTORIAL_BACKEND';
 
-// Función principal para manejar peticiones GET
+// ── Manejador principal ───────────────────────────────────────────
 function doGet(e) {
   try {
-    const action = e.parameter.action;
+    const action = e.parameter.action || '';
     let result = {};
-    
-    switch(action) {
-      case 'test':
+
+    switch (action) {
+      case 'test': 
         result = { success: true, message: 'Conexión exitosa' };
         break;
-        
+
       case 'getData':
+      case 'getGraficoData':
         result = { success: true, data: getData() };
         break;
-        
-      case 'getGraficoData':
-        result = getGraficoData();
-        break;
-        
-      case 'getHistoricalData':
-        result = { success: true, data: getHistoricalData(e.parameter.year) };
-        break;
-        
-      case 'getAllHistoricalData':
-        result = { success: true, data: getAllHistoricalData() };
-        break;
-        
-      case 'generateDashboard':
-        result = { success: true, data: generateDashboardData() };
-        break;
-        
+
       case 'createData':
         result = createData(parseRecordData(e.parameter));
         break;
-        
+
       case 'updateData':
         result = updateData(parseRecordData(e.parameter));
         break;
-        
+
       case 'deleteData':
         result = deleteData(e.parameter.id);
         break;
-        
+
       case 'migrateData':
         result = migrateData(e.parameter.year, e.parameter.month);
         break;
-        
+
+      case 'getHistory':
+        result = { success: true, data: getHistoryData() };
+        break;
+
+      case 'restoreRecord':
+        result = restoreRecord(e.parameter.id, e.parameter.data);
+        break;
+
+      case 'superUndo':
+        result = superUndo(e.parameter.tipoAccion, e.parameter.datosJSON);
+        break;
+
+      case 'generateDashboard':
+        result = { success: true, data: generateDashboardData() };
+        break;
+
+      case 'getHistoricalData':
+        result = { success: true, data: getHistoricalData(e.parameter.year) };
+        break;
+
+      case 'getAllHistoricalData':
+        result = { success: true, data: getAllHistoricalData() };
+        break;
+
       case 'getYearSheets':
         result = getYearSheets();
         break;
-        
+
       case 'createYearSheet':
         result = createYearSheet(e.parameter.year);
         break;
-        
+
       case 'restoreMigration':
         result = restoreMigration(e.parameter.year, e.parameter.month);
         break;
-        
+
       default:
-        result = { success: false, message: 'Acción no reconocida: ' + action };
+        result = { success: false, message: 'Acción desconocida: ' + action };
     }
-    
+
     return ContentService
       .createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
-      
+
   } catch (error) {
-    Logger.log('Error en doGet: ' + error.toString());
+    Logger.log('Error en doGet: ' + error);
     return ContentService
       .createTextOutput(JSON.stringify({
         success: false,
-        message: error.toString()
+        message: error.message || 'Error interno del servidor'
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
-// Parser de datos del record
+// ── Parser de parámetros entrantes ────────────────────────────────
 function parseRecordData(params) {
   return {
-    id: params.id || null,
-    fecha: params.fecha,
-    hora: params.hora,
-    jornada: params.jornada,
-    dia: params.dia,
-    temperatura: parseFloat(params.temperatura),
-    humedad: parseInt(params.humedad),
-    persona: params.persona,
+    id:            params.id || null,
+    no_hc:         params.no_hc || '',
+    fecha:         params.fecha || '',
+    hora:          params.hora || '',
+    jornada:       params.jornada || '',
+    dia:           params.dia || '',
+    temperatura:   parseFloat(params.temperatura) || 0,
+    humedad:       parseFloat(params.humedad) || 0,
+    persona:       params.persona || '',
     observaciones: params.observaciones || ''
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// FUNCIONES DE FORMATO
-// ═══════════════════════════════════════════════════════════════════
-
-function formatDate(dateValue) {
-  if (!dateValue) return '';
-  
-  try {
-    if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return dateValue;
-    }
-    
-    let date;
-    if (dateValue instanceof Date) {
-      date = dateValue;
-    } else if (typeof dateValue === 'number') {
-      const baseDate = new Date(1899, 11, 30);
-      date = new Date(baseDate.getTime() + dateValue * 24 * 60 * 60 * 1000);
-    } else if (typeof dateValue === 'string') {
-      date = new Date(dateValue);
-    } else {
-      return '';
-    }
-    
-    if (isNaN(date.getTime())) {
-      return '';
-    }
-    
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
-    
-  } catch (error) {
-    Logger.log('Error formateando fecha: ' + error);
-    return '';
-  }
-}
-
-function formatTime(timeValue) {
-  if (!timeValue && timeValue !== 0) return '';
-  
-  try {
-    if (typeof timeValue === 'string' && timeValue.match(/^\d{1,2}:\d{2}$/)) {
-      const parts = timeValue.split(':');
-      return String(parts[0]).padStart(2, '0') + ':' + String(parts[1]).padStart(2, '0');
-    }
-    
-    if (timeValue instanceof Date) {
-      const hours = String(timeValue.getHours()).padStart(2, '0');
-      const minutes = String(timeValue.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
-    
-    if (typeof timeValue === 'number') {
-      const totalMinutes = Math.round(timeValue * 24 * 60);
-      const hours = Math.floor(totalMinutes / 60) % 24;
-      const minutes = totalMinutes % 60;
-      return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
-    }
-    
-    if (typeof timeValue === 'string') {
-      const date = new Date(timeValue);
-      if (!isNaN(date.getTime())) {
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${hours}:${minutes}`;
-      }
-    }
-    
-    return String(timeValue);
-    
-  } catch (error) {
-    Logger.log('Error formateando hora: ' + error);
-    return '';
-  }
-}
-
-function formatHumidity(humidityValue) {
-  if (!humidityValue && humidityValue !== 0) return '0';
-  
-  try {
-    if (typeof humidityValue === 'string') {
-      return humidityValue.replace('%', '').trim();
-    }
-    
-    if (typeof humidityValue === 'number') {
-      if (humidityValue < 1 && humidityValue > 0) {
-        return String(Math.round(humidityValue * 100));
-      } else if (humidityValue >= 1 && humidityValue <= 100) {
-        return String(Math.round(humidityValue));
-      } else if (humidityValue > 100) {
-        return String(Math.round(humidityValue / 100));
-      }
-    }
-    
-    return String(Math.round(parseFloat(humidityValue) || 0));
-    
-  } catch (error) {
-    Logger.log('Error formateando humedad: ' + error);
-    return '0';
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// FUNCIONES CRUD
-// ═══════════════════════════════════════════════════════════════════
-
+// ── CRUD (10 columnas: ID, No.HC, Fecha, Hora, Jornada, Día, Temp, Hum, Persona, Obs) ──
 function getData() {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_BASE);
-    
-    if (!sheet) {
-      throw new Error('Hoja BASE no encontrada');
-    }
-    
-    const lastRow = sheet.getLastRow();
-    if (lastRow <= 1) return [];
-    
-    const data = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
-    
-    return data.map(row => ({
-      id: row[0],
-      fecha: formatDate(row[1]),
-      hora: formatTime(row[2]),
-      jornada: row[3],
-      dia: row[4],
-      temperatura: parseFloat(row[5]) || 0,
-      humedad: formatHumidity(row[6]),
-      persona: row[7],
-      observaciones: row[8] || ''
-    }));
-    
-  } catch (error) {
-    Logger.log('Error en getData: ' + error);
-    throw new Error('Error al obtener datos: ' + error.message);
-  }
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_BASE);
+  if (!sheet) throw new Error('Hoja BASE no existe');
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+
+  return data.map(row => ({
+    id:            row[0],
+    no_hc:         row[1] || '',
+    fecha:         formatDate(row[2]),
+    hora:          formatTime(row[3]),
+    jornada:       row[4] || '',
+    dia:           row[5] || '',
+    temperatura:   parseFloat(row[6]) || 0,
+   humedad: (() => {
+        let h = parseFloat(String(row[7]).replace('%', '').trim());
+        if (!isNaN(h) && h > 0 && h < 1) h = Math.round(h * 100);
+        return Math.round(h) || 0;
+    })(),
+    persona:       row[8] || '',
+    observaciones: row[9] || ''
+  }));
 }
 
-function createData(recordData) {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_BASE);
-    
-    const lastRow = sheet.getLastRow();
-    const newId = lastRow > 1 ? sheet.getRange(lastRow, 1).getValue() + 1 : 1;
-    
-    const newRow = [
-      newId,
-      recordData.fecha,
-      recordData.hora,
-      recordData.jornada,
-      recordData.dia,
-      recordData.temperatura,
-      recordData.humedad + '%',
-      recordData.persona,
-      recordData.observaciones || ''
-    ];
-    
-    sheet.appendRow(newRow);
-    
-    const newRowIndex = lastRow + 1;
-    sheet.getRange(newRowIndex, 2).setNumberFormat('yyyy-mm-dd');
-    sheet.getRange(newRowIndex, 3).setNumberFormat('hh:mm');
-    sheet.getRange(newRowIndex, 6).setNumberFormat('0.0');
-    sheet.getRange(newRowIndex, 7).setNumberFormat('0%');
-    
-    updateChart();
-    
-    return { success: true, id: newId };
-  } catch (error) {
-    Logger.log('Error en createData: ' + error);
-    return { success: false, message: error.toString() };
+function createData(record) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_BASE);
+
+  // Calcular siguiente ID
+  const values = sheet.getRange("A:A").getValues();
+  let maxId = 0;
+  for (let i = 1; i < values.length; i++) {
+    const cid = parseInt(values[i][0]);
+    if (!isNaN(cid) && cid > maxId) maxId = cid;
   }
+  const newId = maxId + 1;
+
+  const humFormatted = Math.round(record.humedad) + '%';
+
+  sheet.appendRow([
+    newId,
+    record.no_hc,
+    record.fecha,
+    record.hora,
+    record.jornada,
+    record.dia,
+    record.temperatura,
+    humFormatted,
+    record.persona,
+    record.observaciones
+  ]);
+
+  applyRowFormats(sheet, sheet.getLastRow());
+  updateChart();
+  return { success: true, id: newId };
 }
 
-function updateData(recordData) {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_BASE);
-    const data = sheet.getDataRange().getValues();
-    
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] == recordData.id) {
-        sheet.getRange(i + 1, 2).setValue(recordData.fecha);
-        sheet.getRange(i + 1, 3).setValue(recordData.hora);
-        sheet.getRange(i + 1, 4).setValue(recordData.jornada);
-        sheet.getRange(i + 1, 5).setValue(recordData.dia);
-        sheet.getRange(i + 1, 6).setValue(recordData.temperatura);
-        sheet.getRange(i + 1, 7).setValue(recordData.humedad + '%');
-        sheet.getRange(i + 1, 8).setValue(recordData.persona);
-        sheet.getRange(i + 1, 9).setValue(recordData.observaciones || '');
-        
-        sheet.getRange(i + 1, 2).setNumberFormat('yyyy-mm-dd');
-        sheet.getRange(i + 1, 3).setNumberFormat('hh:mm');
-        sheet.getRange(i + 1, 6).setNumberFormat('0.0');
-        sheet.getRange(i + 1, 7).setNumberFormat('0%');
-        
-        updateChart();
-        return { success: true };
-      }
+function updateData(record) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_BASE);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(record.id)) {
+      const rowNum = i + 1;
+      const humFormatted = Math.round(record.humedad) + '%';
+
+      sheet.getRange(rowNum, 2, 1, 9).setValues([[
+        record.no_hc,
+        record.fecha,
+        record.hora,
+        record.jornada,
+        record.dia,
+        record.temperatura,
+        humFormatted,
+        record.persona,
+        record.observaciones
+      ]]);
+
+      applyRowFormats(sheet, rowNum);
+      updateChart();
+      return { success: true };
     }
-    
-    return { success: false, message: 'Registro no encontrado' };
-  } catch (error) {
-    Logger.log('Error en updateData: ' + error);
-    return { success: false, message: error.toString() };
   }
+  return { success: false, message: 'Registro no encontrado' };
 }
 
 function deleteData(id) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_BASE);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(id)) {
+      const registro = {
+        id: data[i][0],
+        no_hc: data[i][1],
+        fecha: formatDate(data[i][2]),
+        hora: formatTime(data[i][3]),
+        jornada: data[i][4],
+        dia: data[i][5],
+        temperatura: data[i][6],
+        humedad: String(data[i][7]).replace('%', '').trim(),
+        persona: data[i][8],
+        observaciones: data[i][9]
+      };
+
+      registrarCambio('ELIMINACIÓN', registro);
+
+      sheet.deleteRow(i + 1);
+      updateChart();
+      return { success: true };
+    }
+  }
+  return { success: false, message: 'ID no encontrado' };
+}
+
+// ── Historial y Undo ──────────────────────────────────────────────
+function registrarCambio(accion, datos) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(SHEET_HISTORIAL);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_HISTORIAL);
+    sheet.appendRow(['Fecha', 'Hora', 'Acción', 'Datos JSON', 'Usuario']);
+  }
+
+  const now = new Date();
+  sheet.appendRow([
+    Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+    Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss'),
+    accion,
+    JSON.stringify(datos),
+    Session.getActiveUser().getEmail() || 'Anónimo'
+  ]);
+}
+
+function getHistoryData() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_HISTORIAL);
+  if (!sheet) return [];
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  // Extraer las últimas 30 acciones
+  // Extraer las últimas 200 acciones (cubre ~2 días de actividad)
+  const startRow = Math.max(2, lastRow - 199);
+  const data = sheet.getRange(startRow, 1, (lastRow - startRow + 1), 5).getValues();
+
+  return data.reverse().map(row => {
+    let details = {};
+    try { details = JSON.parse(row[3]); } catch(e) { details = {}; }
+    
+    return {
+      fecha: formatDate(row[0]),
+      hora: row[1],
+      accion: row[2],
+      usuario: row[4],
+      fullData: details
+    };
+  });
+}
+
+function restoreRecord(id, jsonData) {
   try {
+    const record = JSON.parse(jsonData);
+    const humFormatted = Math.round(record.humedad) + '%';
+
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(SHEET_BASE);
     const data = sheet.getDataRange().getValues();
-    
+
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0] == id) {
-        sheet.deleteRow(i + 1);
+      if (String(data[i][0]) === String(id)) {
+        const rowNum = i + 1;
+        sheet.getRange(rowNum, 2, 1, 9).setValues([[
+          record.no_hc,
+          record.fecha,
+          record.hora,
+          record.jornada,
+          record.dia,
+          record.temperatura,
+          humFormatted,
+          record.persona,
+          record.observaciones
+        ]]);
+        applyRowFormats(sheet, rowNum);
         updateChart();
-        return { success: true };
+        return { success: true, message: 'Registro restaurado' };
       }
     }
-    
-    return { success: false, message: 'Registro no encontrado' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
+    return { success: false, message: 'ID no encontrado' };
+  } catch (e) {
+    return { success: false, message: e.message };
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// FUNCIONES DE GRÁFICOS
-// ═══════════════════════════════════════════════════════════════════
-
-function getGraficoData() {
+function superUndo(tipoAccion, datosJSON) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_BASE);
-    
-    if (!sheet) {
-      throw new Error('Hoja BASE no encontrada');
+    const datos = JSON.parse(datosJSON);
+    if (tipoAccion === 'ELIMINACIÓN') {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const sheet = ss.getSheetByName(SHEET_BASE);
+      sheet.appendRow([
+        datos.id,
+        datos.no_hc,
+        datos.fecha,
+        datos.hora,
+        datos.jornada,
+        datos.dia,
+        datos.temperatura,
+        Math.round(datos.humedad) + '%',
+        datos.persona,
+        datos.observaciones
+      ]);
+      applyRowFormats(sheet, sheet.getLastRow());
+      updateChart();
+      return { success: true, message: 'Registro restaurado desde eliminación' };
     }
-    
-    const lastRow = sheet.getLastRow();
-    if (lastRow <= 1) {
-      return {
-        success: true,
-        data: [],
-        message: 'No hay datos disponibles'
-      };
-    }
-    
-    const rowCount = Math.min(24, lastRow - 1);
-    const startRow = lastRow - rowCount + 1;
-    
-    const data = sheet.getRange(startRow, 1, rowCount, 9).getValues();
-    
-    const formattedData = data.map(row => ({
-      id: row[0],
-      fecha: formatDate(row[1]),
-      hora: formatTime(row[2]),
-      jornada: row[3],
-      dia: row[4],
-      temperatura: parseFloat(row[5]) || 0,
-      humedad: parseInt(formatHumidity(row[6])) || 0,
-      persona: row[7],
-      observaciones: row[8] || ''
-    }));
-    
-    return {
-      success: true,
-      data: formattedData,
-      lastUpdated: new Date().toISOString(),
-      recordCount: formattedData.length
-    };
-    
-  } catch (error) {
-    Logger.log('Error en getGraficoData: ' + error.message);
-    return {
-      success: false,
-      error: error.message
-    };
+    return { success: false, message: 'Tipo de undo no soportado' };
+  } catch (e) {
+    return { success: false, message: e.message };
   }
 }
 
-function updateChart() {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const baseSheet = ss.getSheetByName(SHEET_BASE);
-    
-    // Buscar o crear la hoja GRAFICO
-    let graficoSheet = ss.getSheetByName(SHEET_GRAFICO);
-    
-    if (!graficoSheet) {
-      // Si no existe, crearla
-      graficoSheet = ss.insertSheet(SHEET_GRAFICO);
-      
-      // Copiar encabezados de BASE
-      const headers = baseSheet.getRange(1, 1, 1, 9).getValues();
-      graficoSheet.getRange(1, 1, 1, 9).setValues(headers);
-      
-      // Aplicar formato a encabezados
-      const headerRange = graficoSheet.getRange(1, 1, 1, 9);
-      headerRange.setBackground('#667eea');
-      headerRange.setFontColor('#ffffff');
-      headerRange.setFontWeight('bold');
-      headerRange.setHorizontalAlignment('center');
-      
-      Logger.log('✅ Hoja GRAFICO creada exitosamente');
-    }
-    
-    // Limpiar solo los datos (mantener encabezados)
-    const lastRow = graficoSheet.getLastRow();
-    if (lastRow > 1) {
-      graficoSheet.deleteRows(2, lastRow - 1);
-    }
-    
-    // Obtener datos de BASE
-    const baseLastRow = baseSheet.getLastRow();
-    if (baseLastRow > 1) {
-      const data = baseSheet.getRange(2, 1, baseLastRow - 1, 9).getValues();
-      
-      // Insertar datos en GRAFICO
-      if (data.length > 0) {
-        graficoSheet.getRange(2, 1, data.length, 9).setValues(data);
-        
-        // Aplicar formatos
-        graficoSheet.getRange(2, 2, data.length, 1).setNumberFormat('yyyy-mm-dd');  // Fecha
-        graficoSheet.getRange(2, 3, data.length, 1).setNumberFormat('hh:mm');        // Hora
-        graficoSheet.getRange(2, 6, data.length, 1).setNumberFormat('0.0');          // Temperatura
-        graficoSheet.getRange(2, 7, data.length, 1).setNumberFormat('0%');           // Humedad
-      }
-    }
-    
-    Logger.log('✅ Hoja GRAFICO actualizada con ' + (baseLastRow - 1) + ' registros');
-    return { success: true };
-    
-  } catch (error) {
-    Logger.log('❌ Error al actualizar gráfico: ' + error.message);
-    return { success: false, message: error.message };
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// FUNCIONES DE MIGRACIÓN
-// ═══════════════════════════════════════════════════════════════════
-
+// ── Migración y Históricos (del código antiguo) ───────────────────
 function migrateData(year, month) {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const baseSheet = ss.getSheetByName(SHEET_BASE);
-    
-    let yearSheet = ss.getSheetByName(year);
-    if (!yearSheet) {
-      yearSheet = ss.insertSheet(year);
-      yearSheet.appendRow(['MES', 'ID', 'FECHA', 'HORA', 'JORNADA', 'DIA', 'TEMPERATURA', 'HUMEDAD', 'PERSONA', 'OBSERVACIONES']);
-    }
-    
-    const lastRow = baseSheet.getLastRow();
-    if (lastRow <= 1) {
-      return { success: false, message: 'No hay datos para migrar' };
-    }
-    
-    const data = baseSheet.getRange(2, 1, lastRow - 1, 9).getValues();
-    
-    data.forEach(row => {
-      const newRow = [
-        month,
-        row[0],
-        formatDate(row[1]),
-        formatTime(row[2]),
-        row[3],
-        row[4],
-        row[5],
-        formatHumidity(row[6]),
-        row[7],
-        row[8]
-      ];
-      yearSheet.appendRow(newRow);
-    });
-    
-    if (lastRow > 1) {
-      baseSheet.deleteRows(2, lastRow - 1);
-    }
-    
-    // Actualizar hoja GRAFICO también
-    updateChart();
-    
-    return { success: true, message: 'Datos migrados a ' + month + ' ' + year };
-  } catch (error) {
-    return { success: false, message: error.toString() };
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const base = ss.getSheetByName(SHEET_BASE);
+  const lastRow = base.getLastRow();
+  if (lastRow <= 1) return { success: false, message: 'No hay datos para migrar' };
+
+  const data = base.getRange(2, 1, lastRow - 1, 10).getValues();
+
+  // Respaldo completo
+  registrarCambio('MIGRACIÓN', data);
+
+  let yearSheet = ss.getSheetByName(year);
+  if (!yearSheet) {
+    yearSheet = ss.insertSheet(year);
+    yearSheet.appendRow(['MES','ID','No.HC','FECHA','HORA','JORNADA','DIA','TEMPERATURA','HUMEDAD','PERSONA','OBSERVACIONES']);
   }
+
+  data.forEach(row => {
+    yearSheet.appendRow([month, ...row]);
+  });
+
+  if (lastRow > 1) {
+    base.deleteRows(2, lastRow - 1);
+  }
+
+  updateChart();
+  return { success: true, message: `Migrados ${data.length} registros a ${month}/${year}` };
 }
 
 function restoreMigration(year, month) {
@@ -508,36 +378,24 @@ function restoreMigration(year, month) {
     const yearSheet = ss.getSheetByName(year);
     
     if (!yearSheet) {
-      return {
-        success: false,
-        message: `La hoja "${year}" no existe`
-      };
+      return { success: false, message: `La hoja "${year}" no existe` };
     }
     
     const baseSheet = ss.getSheetByName(SHEET_BASE);
     if (!baseSheet) {
-      return {
-        success: false,
-        message: 'La hoja BASE no existe'
-      };
+      return { success: false, message: 'La hoja BASE no existe' };
     }
     
     const lastRow = yearSheet.getLastRow();
     if (lastRow <= 1) {
-      return {
-        success: false,
-        message: `No hay datos en la hoja "${year}"`
-      };
+      return { success: false, message: `No hay datos en la hoja "${year}"` };
     }
     
-    const data = yearSheet.getRange(2, 1, lastRow - 1, 10).getValues();
+    const data = yearSheet.getRange(2, 1, lastRow - 1, 11).getValues();
     const monthData = data.filter(row => row[0] === month);
     
     if (monthData.length === 0) {
-      return {
-        success: false,
-        message: `No hay datos para ${month} en ${year}`
-      };
+      return { success: false, message: `No hay datos para ${month} en ${year}` };
     }
     
     const baseLastRow = baseSheet.getLastRow();
@@ -549,52 +407,36 @@ function restoreMigration(year, month) {
     const restoredData = monthData.map(row => {
       return [
         nextId++,
-        row[2],
-        row[3],
-        row[4],
-        row[5],
-        row[6],
-        row[7] + '%',
-        row[8],
-        row[9]
+        row[2], // No.HC
+        row[3], // Fecha
+        row[4], // Hora
+        row[5], // Jornada
+        row[6], // Día
+        row[7], // Temp
+        row[8] + '%', // Hum
+        row[9], // Persona
+        row[10] // Obs
       ];
     });
     
     if (restoredData.length > 0) {
-      baseSheet.getRange(baseLastRow + 1, 1, restoredData.length, 9).setValues(restoredData);
+      baseSheet.getRange(baseLastRow + 1, 1, restoredData.length, 10).setValues(restoredData);
       
       const startRow = baseLastRow + 1;
-      baseSheet.getRange(startRow, 2, restoredData.length, 1).setNumberFormat('yyyy-mm-dd');
-      baseSheet.getRange(startRow, 3, restoredData.length, 1).setNumberFormat('hh:mm');
-      baseSheet.getRange(startRow, 6, restoredData.length, 1).setNumberFormat('0.0');
-      baseSheet.getRange(startRow, 7, restoredData.length, 1).setNumberFormat('0%');
+      baseSheet.getRange(startRow, 3, restoredData.length, 1).setNumberFormat('yyyy-mm-dd');
+      baseSheet.getRange(startRow, 4, restoredData.length, 1).setNumberFormat('hh:mm');
+      baseSheet.getRange(startRow, 7, restoredData.length, 1).setNumberFormat('0.0');
+      baseSheet.getRange(startRow, 8, restoredData.length, 1).setNumberFormat('0%');
     }
-    
-    const rowsToDelete = [];
-    for (let i = data.length - 1; i >= 0; i--) {
-      if (data[i][0] === month) {
-        rowsToDelete.push(i + 2);
-      }
-    }
-    
-    rowsToDelete.forEach(rowIndex => {
-      yearSheet.deleteRow(rowIndex);
-    });
     
     updateChart();
-    
     return {
       success: true,
-      message: `${restoredData.length} registros de ${month} ${year} restaurados a BASE`,
+      message: `${restoredData.length} registros restaurados`,
       recordsRestored: restoredData.length
     };
-    
   } catch (error) {
-    Logger.log('Error en restoreMigration: ' + error.toString());
-    return {
-      success: false,
-      message: error.toString()
-    };
+    return { success: false, message: error.toString() };
   }
 }
 
@@ -608,19 +450,24 @@ function getHistoricalData(year) {
     const lastRow = sheet.getLastRow();
     if (lastRow <= 1) return [];
     
-    const data = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+    const data = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
     
-    return data.map(row => ({
-      mes: row[0],
-      id: row[1],
-      fecha: formatDate(row[2]),
-      hora: formatTime(row[3]),
-      jornada: row[4],
-      dia: row[5],
-      temperatura: parseFloat(row[6]),
-      humedad: formatHumidity(row[7]),
-      persona: row[8],
-      observaciones: row[9]
+return data.map(row => ({
+      mes:           row[0]  || '',
+      id:            row[1]  || '',
+      no_hc:         row[2]  || '',
+      fecha:         formatDate(row[3]),
+      hora:          formatTime(row[4]),
+      jornada:       row[5]  || '',
+      dia:           row[6]  || '',
+      temperatura:   parseFloat(row[7]) || 0,
+      humedad: (() => {
+        let h = parseFloat(String(row[8]).replace('%','').trim());
+        if (!isNaN(h) && h > 0 && h < 1) h = Math.round(h * 100);
+        return Math.round(h) || 0;
+      })(),
+      persona:       row[9]  || '',
+      observaciones: row[10] || ''
     }));
   } catch (error) {
     throw new Error('Error al obtener datos históricos: ' + error.message);
@@ -638,7 +485,7 @@ function getAllHistoricalData() {
       if (/^\d{4}$/.test(name)) {
         const lastRow = sheet.getLastRow();
         if (lastRow > 1) {
-          const data = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+          const data = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
           
           historicalData[name] = {};
           
@@ -650,21 +497,22 @@ function getAllHistoricalData() {
             
             historicalData[name][month].push({
               id: row[1],
-              fecha: formatDate(row[2]),
-              hora: formatTime(row[3]),
-              jornada: row[4],
-              dia: row[5],
-              temperatura: parseFloat(row[6]),
-              humedad: formatHumidity(row[7]),
-              persona: row[8],
-              observaciones: row[9]
+              no_hc: row[2],
+              fecha: formatDate(row[3]),
+              hora: formatTime(row[4]),
+              jornada: row[5],
+              dia: row[6],
+              temperatura: parseFloat(row[7]),
+              humedad: String(row[8]).replace('%', '').trim(),
+              persona: row[9],
+              observaciones: row[10]
             });
           });
         }
       }
     });
     
-    return { success: true, data: historicalData };
+    return historicalData;
   } catch (error) {
     return { success: false, message: error.toString() };
   }
@@ -716,9 +564,9 @@ function createYearSheet(year) {
     }
     
     sheet = ss.insertSheet(year);
-    sheet.appendRow(['MES', 'ID', 'FECHA', 'HORA', 'JORNADA', 'DIA', 'TEMPERATURA', 'HUMEDAD', 'PERSONA', 'OBSERVACIONES']);
+    sheet.appendRow(['MES', 'ID', 'No.HC', 'FECHA', 'HORA', 'JORNADA', 'DIA', 'TEMPERATURA', 'HUMEDAD', 'PERSONA', 'OBSERVACIONES']);
     
-    const headerRange = sheet.getRange(1, 1, 1, 10);
+    const headerRange = sheet.getRange(1, 1, 1, 11);
     headerRange.setBackground('#667eea');
     headerRange.setFontColor('#ffffff');
     headerRange.setFontWeight('bold');
@@ -729,120 +577,117 @@ function createYearSheet(year) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// DASHBOARD
-// ═══════════════════════════════════════════════════════════════════
+// ── Gráficos y formatos ───────────────────────────────────────────
+function updateChart() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const base = ss.getSheetByName(SHEET_BASE);
+  let grafico = ss.getSheetByName(SHEET_GRAFICO);
 
+  if (!grafico) {
+    grafico = ss.insertSheet(SHEET_GRAFICO);
+    const headers = base.getRange(1,1,1,10).getValues();
+    grafico.getRange(1,1,1,10).setValues(headers);
+    grafico.getRange(1,1,1,10)
+      .setBackground('#2563eb')
+      .setFontColor('white')
+      .setFontWeight('bold');
+  }
+
+  grafico.clearContents();
+  const headers = base.getRange(1,1,1,10).getValues();
+  grafico.getRange(1,1,1,10).setValues(headers);
+
+  const lastRow = base.getLastRow();
+  if (lastRow > 1) {
+    const data = base.getRange(2,1,lastRow-1,10).getValues();
+    grafico.getRange(2,1,data.length,10).setValues(data);
+    applyTableFormats(grafico, 2, data.length);
+  }
+}
+
+function applyRowFormats(sheet, row) {
+  sheet.getRange(row, 3).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(row, 4).setNumberFormat('hh:mm');
+  sheet.getRange(row, 7).setNumberFormat('0.0');
+  sheet.getRange(row, 8).setNumberFormat('@STRING@');    // ← humedad es texto "75%"
+}
+
+function applyTableFormats(sheet, startRow, numRows) {
+  if (numRows < 1) return;
+  sheet.getRange(startRow, 3, numRows, 1).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(startRow, 4, numRows, 1).setNumberFormat('hh:mm');
+  sheet.getRange(startRow, 7, numRows, 1).setNumberFormat('0.0');
+  sheet.getRange(startRow, 8, numRows, 1).setNumberFormat('@STRING@'); // ← ídem
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────
 function generateDashboardData() {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const baseSheet = ss.getSheetByName(SHEET_BASE);
-    
-    const lastRow = baseSheet.getLastRow();
-    if (lastRow <= 1) {
-      return getEmptyDashboard();
-    }
-    
-    const data = baseSheet.getRange(2, 1, lastRow - 1, 9).getValues();
-    
-    let tempSum = 0;
-    let humiditySum = 0;
-    let tempValues = [];
-    let humidityValues = [];
-    
-    data.forEach(row => {
-      const temp = parseFloat(row[5]);
-      const humidity = parseInt(formatHumidity(row[6]));
-      
-      if (!isNaN(temp)) {
-        tempSum += temp;
-        tempValues.push(temp);
-      }
-      
-      if (!isNaN(humidity)) {
-        humiditySum += humidity;
-        humidityValues.push(humidity);
-      }
-    });
-    
-    const tempAvg = tempValues.length > 0 ? tempSum / tempValues.length : 0;
-    const humidityAvg = humidityValues.length > 0 ? humiditySum / humidityValues.length : 0;
-    
-    let tempAnalysis = 'Normal';
-    if (tempAvg < 15) tempAnalysis = 'Temperatura Baja';
-    else if (tempAvg > 25) tempAnalysis = 'Temperatura Alta';
-    
-    let humidityAnalysis = 'Normal';
-    if (humidityAvg < 40) humidityAnalysis = 'Humedad Baja';
-    else if (humidityAvg > 70) humidityAnalysis = 'Humedad Alta';
-    
-    const yearTempAvg = calculateYearlyAverage('temperatura');
-    const yearHumidityAvg = calculateYearlyAverage('humedad');
-    
-    const lastRecord = data.length > 0 ? formatDate(data[data.length - 1][1]) : 'N/A';
-    
-    return {
-      tempAvg: tempAvg,
-      tempSum: tempSum,
-      tempAnalysis: tempAnalysis,
-      humidityAvg: humidityAvg,
-      humiditySum: humiditySum,
-      humidityAnalysis: humidityAnalysis,
-      yearTempAvg: yearTempAvg,
-      yearHumidityAvg: yearHumidityAvg,
-      totalRecords: data.length,
-      lastRecord: lastRecord
-    };
-  } catch (error) {
-    throw new Error('Error al generar dashboard: ' + error.message);
-  }
-}
+  const records = getData();
 
-function calculateYearlyAverage(type) {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const currentYear = new Date().getFullYear().toString();
-    const yearSheet = ss.getSheetByName(currentYear);
-    
-    if (!yearSheet) return 0;
-    
-    const lastRow = yearSheet.getLastRow();
-    if (lastRow <= 1) return 0;
-    
-    const colIndex = type === 'temperatura' ? 7 : 8;
-    const values = yearSheet.getRange(2, colIndex, lastRow - 1, 1).getValues();
-    
-    let sum = 0;
-    let count = 0;
-    
-    values.forEach(row => {
-      const value = type === 'humedad' ? 
-        parseInt(formatHumidity(row[0])) : 
-        parseFloat(row[0]);
-      
-      if (!isNaN(value)) {
-        sum += value;
-        count++;
-      }
-    });
-    
-    return count > 0 ? sum / count : 0;
-  } catch (error) {
-    return 0;
-  }
-}
-
-function getEmptyDashboard() {
-  return {
-    tempAvg: 0,
-    tempSum: 0,
-    tempAnalysis: 'Sin datos',
-    humidityAvg: 0,
-    humiditySum: 0,
-    humidityAnalysis: 'Sin datos',
-    yearTempAvg: 0,
-    yearHumidityAvg: 0,
+  const empty = {
     totalRecords: 0,
+    tempAvg: 0, tempSum: 0, tempAnalysis: 'Sin datos',
+    humidityAvg: 0, humiditySum: 0, humidityAnalysis: 'Sin datos',
+    yearTempAvg: 0, yearHumidityAvg: 0,
     lastRecord: 'N/A'
   };
+
+  if (!records.length) return empty;
+
+  // ── USA TODOS LOS REGISTROS DE BASE (sin filtrar por mes) ─────
+  const temps = records
+    .map(r => parseFloat(r.temperatura))
+    .filter(v => !isNaN(v) && v > 0);
+
+  const hums = records
+    .map(r => {
+      let h = parseFloat(String(r.humedad).replace('%','').trim());
+      if (!isNaN(h) && h > 0 && h < 1) h = Math.round(h * 100);
+      return h;
+    })
+    .filter(v => !isNaN(v) && v > 0);
+
+  const tempSum = temps.reduce((a,b) => a+b, 0);
+  const humSum  = hums.reduce((a,b) => a+b, 0);
+  const tempAvg = temps.length ? tempSum / temps.length : 0;
+  const humAvg  = hums.length  ? humSum  / hums.length  : 0;
+
+  // ── Promedios anuales = mismos datos base ─────────────────────
+  const lastRecord = records[records.length - 1]?.fecha || 'N/A';
+
+  return {
+    totalRecords:     records.length,
+    tempAvg:          Math.round(tempAvg * 10) / 10,
+    tempSum:          Math.round(tempSum * 10) / 10,
+    tempAnalysis:     tempAvg > 25 ? 'Alta' : tempAvg < 15 ? 'Baja' : 'Normal',
+    humidityAvg:      Math.round(humAvg),
+    humiditySum:      Math.round(humSum),
+    humidityAnalysis: humAvg > 70 ? 'Alta' : humAvg < 40 ? 'Baja' : 'Normal',
+    yearTempAvg:      Math.round(tempAvg * 10) / 10,
+    yearHumidityAvg:  Math.round(humAvg),
+    lastRecord:       lastRecord
+  };
+}
+
+// ── Utilidades de formato (mejoradas del código antiguo) ──────────
+function formatDate(value) {
+  if (!value) return '';
+  try {
+    const date = (value instanceof Date) ? value : new Date(value);
+    if (isNaN(date.getTime())) return '';
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  } catch (e) {
+    return '';
+  }
+}
+
+function formatTime(value) {
+  if (!value && value !== 0) return '';
+  try {
+    const date = (value instanceof Date) ? value : new Date(value);
+    if (isNaN(date.getTime())) return String(value);
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'HH:mm');
+  } catch (e) {
+    return String(value);
+  }
 }
