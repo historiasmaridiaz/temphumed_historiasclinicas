@@ -158,52 +158,90 @@ async function loadYearSheets() {
 
 function renderYearsGrid(years) {
     const container = document.getElementById('yearSheetsContainer');
-    
     if (!container) return;
-    
+
     if (years.length === 0) {
         container.innerHTML = `
-            <div class="empty-state">
-                <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <p>No hay hojas de años disponibles</p>
-                <button class="btn btn-primary" onclick="openCreateYearModal()">
-                    Crear Nueva Hoja
+            <div style="text-align:center; padding: 40px; color: #718096;">
+                <p style="font-size:1.1em;">No hay hojas de años disponibles</p>
+                <button class="btn btn-primary" style="margin-top:15px;" onclick="openCreateYearModal()">
+                    ➕ Crear Nueva Hoja
                 </button>
-            </div>
-        `;
+            </div>`;
         return;
     }
-    
+
+    const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+                   'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
     container.innerHTML = years.map(yearData => `
-        <div class="year-card ${yearData.active ? 'active' : ''}">
-            <div class="year-card-header">
-                <h3>${yearData.year}</h3>
-                ${yearData.active ? '<span class="badge badge-success">Activo</span>' : ''}
+        <div style="
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            transition: box-shadow 0.2s;
+        " onmouseover="this.style.boxShadow='0 6px 20px rgba(102,126,234,0.18)'"
+           onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.07)'">
+
+            <!-- Header -->
+            <div style="
+                background: ${yearData.active
+                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                    : 'linear-gradient(135deg, #4a5568 0%, #2d3748 100%)'};
+                padding: 16px 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            ">
+                <h3 style="color:white; margin:0; font-size:1.4em; font-weight:700;">
+                    📁 ${yearData.year}
+                </h3>
+                ${yearData.active
+                    ? '<span style="background:rgba(255,255,255,0.25); color:white; padding:3px 10px; border-radius:20px; font-size:0.78em; font-weight:600;">✅ ACTIVO</span>'
+                    : '<span style="background:rgba(255,255,255,0.15); color:rgba(255,255,255,0.8); padding:3px 10px; border-radius:20px; font-size:0.78em;">Archivado</span>'
+                }
             </div>
-            
-            <div class="year-stats">
-                <div class="stat-item">
-                    <span class="stat-label">📅 Meses</span>
-                    <span class="stat-value">${yearData.months}</span>
+
+            <!-- Stats -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid #e2e8f0;">
+                <div style="padding: 14px 16px; text-align:center; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size:0.72em; color:#718096; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Meses</div>
+                    <div style="font-size:1.4em; font-weight:700; color:#2d3748;">${yearData.months}</div>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">📊 Registros</span>
-                    <span class="stat-value">${yearData.records}</span>
+                <div style="padding: 14px 16px; text-align:center; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size:0.72em; color:#718096; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Registros</div>
+                    <div style="font-size:1.4em; font-weight:700; color:#667eea;">${yearData.records}</div>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">🕒 Actualizado</span>
-                    <span class="stat-value">${yearData.lastUpdate}</span>
+                <div style="padding: 14px 16px; text-align:center;">
+                    <div style="font-size:0.72em; color:#718096; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Actualizado</div>
+                    <div style="font-size:0.82em; font-weight:600; color:#4a5568;">${yearData.lastUpdate}</div>
                 </div>
             </div>
-            
-            <div class="year-actions">
-                <button class="btn btn-sm btn-primary" onclick="viewYearData('${yearData.year}')">
+
+            <!-- Filtro por mes -->
+            <div style="padding: 14px 16px; background: #f7fafc; border-bottom: 1px solid #e2e8f0;">
+                <label style="font-size:0.78em; color:#718096; font-weight:600; display:block; margin-bottom:6px;">
+                    📆 FILTRAR POR MES
+                </label>
+                <select id="monthFilter_${yearData.year}" class="form-control"
+                    style="font-size:0.88em; padding: 7px 10px; border-radius:8px;"
+                    onchange="viewYearDataFiltered('${yearData.year}', this.value)">
+                    <option value="">— Todos los meses —</option>
+                    ${MESES.map(m => `<option value="${m}">${m}</option>`).join('')}
+                </select>
+            </div>
+
+            <!-- Acciones -->
+            <div style="padding: 14px 16px; display: flex; gap: 8px;">
+                <button class="btn btn-primary" style="flex:1; font-size:0.85em; padding:8px 0;"
+                    onclick="viewYearDataFiltered('${yearData.year}', document.getElementById('monthFilter_${yearData.year}').value)">
                     👁️ Ver Datos
                 </button>
-                <button class="btn btn-sm btn-outline" onclick="openSheetInGoogleSheets('${yearData.gid}')">
-                    🔗 Abrir en Sheets
+                <button class="btn btn-outline" style="flex:1; font-size:0.85em; padding:8px 0;"
+                    onclick="openSheetInGoogleSheets('${yearData.gid}')">
+                    🔗 Sheets
                 </button>
             </div>
         </div>
@@ -477,41 +515,57 @@ async function viewYearData(year) {
 
 function renderHistoricalData(year, data) {
     const container = document.getElementById('historicalDataContainer');
-    
     if (!container) return;
-    
+
     if (!data || data.length === 0) {
         container.innerHTML = `
             <p style="text-align: center; color: #718096; padding: 40px;">
                 No hay datos disponibles para ${year}
-            </p>
-        `;
+            </p>`;
         return;
     }
-    
-    // Agrupar por mes
+
+    // Agrupar por mes correctamente
     const dataByMonth = {};
     data.forEach(record => {
-        if (!dataByMonth[record.mes]) {
-            dataByMonth[record.mes] = [];
-        }
-        dataByMonth[record.mes].push(record);
+        const mes = record.mes || 'Sin mes';
+        if (!dataByMonth[mes]) dataByMonth[mes] = [];
+        dataByMonth[mes].push(record);
     });
-    
-    let html = `<h3 style="padding: 20px; border-bottom: 1px solid #e2e8f0;">📅 Datos de ${year}</h3>`;
-    
-    Object.keys(dataByMonth).forEach(month => {
+
+    let html = `
+        <div style="padding: 15px 20px; border-bottom: 2px solid #667eea; margin-bottom: 10px;">
+            <h3 style="color: #2d3748;">📅 Datos de ${year} — ${data.length} registros totales</h3>
+        </div>`;
+
+    Object.keys(dataByMonth).sort().forEach(month => {
         const monthData = dataByMonth[month];
+
+        // Calcular estadísticas del mes
+        const temps = monthData.map(r => parseFloat(r.temperatura)).filter(v => !isNaN(v) && v > 0);
+        const hums  = monthData.map(r => {
+            let h = parseFloat(String(r.humedad).replace('%','').trim());
+            if (!isNaN(h) && h > 0 && h < 1) h = Math.round(h * 100);
+            return h;
+        }).filter(v => !isNaN(v) && v > 0);
+
+        const tempAvg = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : '--';
+        const humAvg  = hums.length  ? Math.round(hums.reduce((a,b)=>a+b,0)/hums.length)    : '--';
+
         html += `
-            <div style="padding: 20px; border-bottom: 1px solid #e2e8f0;">
-                <h4 style="color: #667eea; margin-bottom: 15px;">
-                    📆 ${month} (${monthData.length} registros)
-                </h4>
-                <div class="table-container">
-                    <table class="data-table">
+            <div style="margin: 15px 20px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
+                <div style="background: #667eea; padding: 12px 20px; display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="color: white; margin: 0;">📆 ${month} — ${monthData.length} registros</h4>
+                    <span style="color: rgba(255,255,255,0.85); font-size: 0.85em;">
+                        Temp promedio: ${tempAvg}°C &nbsp;|&nbsp; Humedad promedio: ${humAvg}%
+                    </span>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="data-table" style="margin:0;">
                         <thead>
                             <tr>
                                 <th>ID</th>
+                                <th>No. HC</th>
                                 <th>Fecha</th>
                                 <th>Hora</th>
                                 <th>Jornada</th>
@@ -523,28 +577,43 @@ function renderHistoricalData(year, data) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${monthData.map(record => `
+                            ${monthData.map(record => {
+                                // Limpiar humedad
+                                let h = parseFloat(String(record.humedad || '0').replace('%','').trim());
+                                if (!isNaN(h) && h > 0 && h < 1) h = Math.round(h * 100);
+                                const humDisplay = Math.round(h) || 0;
+
+                                // Limpiar temperatura
+                                const tempDisplay = parseFloat(record.temperatura) || 0;
+
+                                return `
                                 <tr>
-                                    <td>${record.id}</td>
-                                    <td>${record.fecha}</td>
-                                    <td>${record.hora}</td>
-                                    <td>${record.jornada}</td>
-                                    <td>${record.dia}</td>
-                                    <td>${record.temperatura}</td>
-                                    <td>${record.humedad}</td>
-                                    <td>${record.persona}</td>
+                                    <td>${record.id || '-'}</td>
+                                    <td style="font-weight:bold; color:#667eea;">${record.no_hc || '-'}</td>
+                                    <td>${record.fecha || '-'}</td>
+                                    <td>${record.hora || '-'}</td>
+                                    <td>
+                                        <span class="badge badge-${record.jornada === 'MAÑANA' ? 'info' : 'success'}">
+                                            ${record.jornada || '-'}
+                                        </span>
+                                    </td>
+                                    <td>${record.dia || '-'}</td>
+                                    <td>${tempDisplay.toFixed(1)}°C</td>
+                                    <td>${humDisplay}%</td>
+                                    <td>${record.persona || '-'}</td>
                                     <td>${record.observaciones || '-'}</td>
-                                </tr>
-                            `).join('')}
+                                </tr>`;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
-            </div>
-        `;
+            </div>`;
     });
-    
+
     container.innerHTML = html;
 }
+
+
 
 // ═════════════════════════════════════════════════════════════════════════
 //  CARGAR DATOS HISTÓRICOS
@@ -586,6 +655,50 @@ function openSheetInGoogleSheets(gid) {
     window.open(url, '_blank', 'noopener,noreferrer');
 }
 
+async function viewYearDataFiltered(year, month) {
+    try {
+        showNotification(`📊 Cargando datos de ${year}${month ? ' — ' + month : ''}...`, 'info');
+
+        const result = await callAppsScript('getHistoricalData', { year });
+
+        if (!result.success) throw new Error(result.message);
+
+        let data = result.data;
+
+        // Filtrar por mes si se seleccionó uno
+        if (month && month !== '') {
+            data = data.filter(r => r.mes === month);
+        }
+
+        if (data.length === 0) {
+            const container = document.getElementById('historicalDataContainer');
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px; color:#718096;">
+                    <p style="font-size:1.1em;">No hay registros para 
+                        <strong>${month || 'este año'}</strong> en ${year}
+                    </p>
+                </div>`;
+            // Scroll suave al explorador
+            document.getElementById('historicalDataContainer')
+                .scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+
+        renderHistoricalData(year, data);
+        showNotification(`✅ ${data.length} registros cargados`, 'success');
+
+        // Scroll suave al explorador
+        setTimeout(() => {
+            document.getElementById('historicalDataContainer')
+                .scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 200);
+
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('❌ Error: ' + error.message, 'error');
+    }
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 //  HACER FUNCIONES GLOBALES
 // ═════════════════════════════════════════════════════════════════════════
@@ -601,3 +714,5 @@ window.executeCreateYear = executeCreateYear;
 window.viewYearData = viewYearData;
 window.openSheetInGoogleSheets = openSheetInGoogleSheets;
 window.loadHistoricalData = loadHistoricalData;
+window.loadYearSheets = loadYearSheets;
+window.viewYearDataFiltered = viewYearDataFiltered;
