@@ -10,9 +10,9 @@
 }
 
 :root {
-    --primary: #1764ea;
+    --primary: #9d00ff;
     --primary-dark: #2f7dfb;
-    --secondary: #4b40b4;
+    --secondary: #811cc0;
     --success: #28a745;
     --danger: #dc3545;
     --warning: #ffc107;
@@ -1147,4 +1147,31 @@ select.form-control {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+    /* OCULTAR COLUMNA ID */
+    .hide-column { 
+        display: none !important; 
+        visibility: hidden; 
+        width: 0; 
+        padding: 0; 
+        margin: 0;
+    }
+    .font-mono { font-family: 'Courier New', Courier, monospace; font-weight: bold; }
+    /* resto de estilos... */
+
+    .hide-column { 
+        display: none !important; 
+        visibility: hidden; 
+        width: 0; 
+        padding: 0; 
+        margin: 0;
+    }
+
+.hide-column { 
+    display: none !important; 
+    visibility: hidden; 
+    width: 0; 
+    padding: 0; 
+    margin: 0;
 }
