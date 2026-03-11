@@ -17,28 +17,36 @@ async function generateDashboard() {
     try {
         const result = await callAppsScript('generateDashboard');
         
-        if (result.success) {
+       if (result.success) {
             const data = result.data;
-            
+
+            // Sanitizar valores numéricos para evitar undefined.toFixed()
+            const tempAvg        = parseFloat(data.tempAvg)        || 0;
+            const tempSum        = parseFloat(data.tempSum)        || 0;
+            const humidityAvg    = parseFloat(data.humidityAvg)    || 0;
+            const humiditySum    = parseFloat(data.humiditySum)    || 0;
+            const yearTempAvg    = parseFloat(data.yearTempAvg)    || 0;
+            const yearHumidityAvg= parseFloat(data.yearHumidityAvg)|| 0;
+
             // Actualizar temperatura
-            document.getElementById('tempAvg').textContent = data.tempAvg.toFixed(1) + '°C';
-            document.getElementById('tempSum').textContent = data.tempSum.toFixed(1);
-            document.getElementById('tempAnalysis').textContent = data.tempAnalysis;
-            document.getElementById('tempAnalysis').className = 'stat-label ' + getAnalysisClass(data.tempAnalysis);
-            
+            document.getElementById('tempAvg').textContent      = tempAvg.toFixed(1) + '°C';
+            document.getElementById('tempSum').textContent      = tempSum.toFixed(1);
+            document.getElementById('tempAnalysis').textContent = data.tempAnalysis || '--';
+            document.getElementById('tempAnalysis').className   = 'stat-label ' + getAnalysisClass(data.tempAnalysis || '');
+
             // Actualizar humedad
-            document.getElementById('humidityAvg').textContent = data.humidityAvg.toFixed(0) + '%';
-            document.getElementById('humiditySum').textContent = data.humiditySum.toFixed(0);
-            document.getElementById('humidityAnalysis').textContent = data.humidityAnalysis;
-            document.getElementById('humidityAnalysis').className = 'stat-label ' + getAnalysisClass(data.humidityAnalysis);
-            
+            document.getElementById('humidityAvg').textContent      = humidityAvg.toFixed(0) + '%';
+            document.getElementById('humiditySum').textContent      = humiditySum.toFixed(0);
+            document.getElementById('humidityAnalysis').textContent = data.humidityAnalysis || '--';
+            document.getElementById('humidityAnalysis').className   = 'stat-label ' + getAnalysisClass(data.humidityAnalysis || '');
+
             // Actualizar promedios anuales
-            document.getElementById('yearTempAvg').textContent = data.yearTempAvg.toFixed(1) + '°C';
-            document.getElementById('yearHumidityAvg').textContent = data.yearHumidityAvg.toFixed(0) + '%';
-            
+            document.getElementById('yearTempAvg').textContent     = yearTempAvg.toFixed(1) + '°C';
+            document.getElementById('yearHumidityAvg').textContent = yearHumidityAvg.toFixed(0) + '%';
+
             // Actualizar estadísticas generales
-            document.getElementById('totalRecords').textContent = data.totalRecords;
-            document.getElementById('lastRecord').textContent = formatDate(data.lastRecord);
+            document.getElementById('totalRecords').textContent = data.totalRecords || 0;
+            document.getElementById('lastRecord').textContent   = formatDate(data.lastRecord);
             
             showAlert('Dashboard actualizado exitosamente', 'success');
         } else {
