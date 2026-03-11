@@ -6,7 +6,7 @@
 
 // ⚠️ REEMPLAZA ESTA URL CON LA TUYA
 // Ejemplo: 'https://script.google.com/macros/s/AKfycbxxx.../exec'
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzpQI7vfy9KYBvFsGYBFPIYZ38T90V8lzPn5yamDI7NGhUsfB76gU2HBtgmeX8ri1SGJQ/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9JON4PyxVWxIFTI4UsmIFer2j5dOHFTI39yW5cu8x-CIdx4fnf_yUJwfaw46Ey6kVXQ/exec';
 
 
 // ═══════════════════════════════════════════════════════════════════
