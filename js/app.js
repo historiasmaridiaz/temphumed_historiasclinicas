@@ -143,20 +143,28 @@ function openAddModal() {
     const hour = now.getHours();
     document.getElementById('jornada').value = hour < 14 ? 'MAÑANA' : 'TARDE';
 
-    // Secuencia de día: si la última jornada fue TARDE, avanzar al siguiente día
-    const lastDia     = parseInt(localStorage.getItem('lastDia'))     || now.getDate();
-    const lastJornada = localStorage.getItem('lastJornada')           || '';
+  // Secuencia día + jornada:
+    // Día 13 MAÑANA → Día 13 TARDE → Día 14 MAÑANA → Día 14 TARDE ...
+    const lastDia     = parseInt(localStorage.getItem('lastDia')) || now.getDate();
+    const lastJornada = localStorage.getItem('lastJornada') || '';
 
-    let nextDia = lastDia;
-    if (lastJornada === 'TARDE') {
-        // Después de TARDE, el siguiente registro es MAÑANA del día siguiente
+    let nextDia     = lastDia;
+    let nextJornada = 'MAÑANA';
+
+    if (lastJornada === 'MAÑANA') {
+        // Después de MAÑANA → mismo día, TARDE
+        nextDia     = lastDia;
+        nextJornada = 'TARDE';
+    } else if (lastJornada === 'TARDE') {
+        // Después de TARDE → día siguiente, MAÑANA
         nextDia = lastDia + 1;
-        // Si pasa del último día del mes, volver al 1
         const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         if (nextDia > lastDayOfMonth) nextDia = 1;
+        nextJornada = 'MAÑANA';
     }
 
-    document.getElementById('dia').value = nextDia;
+    document.getElementById('dia').value    = nextDia;
+    document.getElementById('jornada').value = nextJornada;
     
     openModal();
 }
